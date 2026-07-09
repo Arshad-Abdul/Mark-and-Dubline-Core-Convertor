@@ -1,0 +1,21 @@
+{
+  "name": "marc-convertor-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch-path=./src src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "fast-xml-parser": "^5.9.3",
+    "jszip": "^3.10.1",
+    "multer": "^2.0.1"
+  }
+}

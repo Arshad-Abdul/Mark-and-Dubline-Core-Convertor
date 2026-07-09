@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(curl -s -D - -o /tmp/dc_out.csv -F \"file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv\" http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s http://localhost:4000/api/health)",
+      "Bash(curl -s -D - -o /tmp/dc.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -o /tmp/dc_final.csv -D - -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:5174/api/scopus-to-dc)",
+      "Bash(curl -s -m 5 http://localhost:5174/api/health)",
+      "Bash(powershell -Command \"Stop-Process -Id 27100 -Force\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -F \"file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv\" http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -D - -o /tmp/dc_test.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -F \"file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv\" http://localhost:5174/api/scopus-to-dc)",
+      "Bash(curl -s http://10.24.65.78:5173/api/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://10.24.65.78:5173/)",
+      "Bash(curl -s -o /tmp/dc_fixed.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -o /tmp/dc_v2.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -o C:/Users/HP/AppData/Local/Temp/claude/e--Projects-marc-convertor/ec4818e5-c627-410f-ad1a-a13fd1e2d1b0/scratchpad/dc_v2.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' http://localhost:4000/api/scopus-to-dc)",
+      "Bash(curl -s -o C:/Users/HP/AppData/Local/Temp/claude/e--Projects-marc-convertor/ec4818e5-c627-410f-ad1a-a13fd1e2d1b0/scratchpad/dc_20auth.csv -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' -F maxAuthors=20 http://localhost:4000/api/scopus-to-dc)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"ProcessId=20528\\\\\" | Select-Object CommandLine\")",
+      "Bash(curl -s -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' -F maxAuthors=20 http://localhost:4000/api/scopus-to-dc -o __TRACKED_VAR__/dc_dspace.csv)",
+      "Bash(curl -s -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' -F maxAuthors=20 http://localhost:4000/api/scopus-to-dc -o __TRACKED_VAR__/dc_v3.csv)",
+      "Bash(curl -s -F 'file=@/e/ve data/scopus_export_Jul 8-2026_41f06869-29e8-4bce-9f0e-4f03d4094505.csv' -F maxAuthors=20 -F collectionHandle=123456789/42 http://localhost:4000/api/scopus-to-dc -o C:/Users/HP/AppData/Local/Temp/claude/e--Projects-marc-convertor/ec4818e5-c627-410f-ad1a-a13fd1e2d1b0/scratchpad/dc_dspace_v4.csv)"
+    ]
+  }
+}
