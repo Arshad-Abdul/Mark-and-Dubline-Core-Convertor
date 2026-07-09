@@ -63,7 +63,20 @@ function multiJoin(values) {
 
 function buildAuthors(get, maxAuthors) {
   const raw = get('Author full names', 'Authors');
-  if (!raw) return '';
+  const editorRaw = get('Editors', 'Editor(s)', 'Editor');
+
+  if (!raw && !editorRaw) return '';
+
+  // No authors — fall back to editors marked with (Ed.)
+  if (!raw && editorRaw) {
+    return editorRaw
+      .split(';')
+      .map((e) => e.trim())
+      .filter(Boolean)
+      .map((e) => `${e} (Ed.)`)
+      .join('||');
+  }
+
   const all = raw
     .split(';')
     .map((name) => name.trim().replace(/\s*\(\d+\)\s*$/, '').trim())
