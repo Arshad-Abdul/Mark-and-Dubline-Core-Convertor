@@ -123,7 +123,9 @@ function buildDescription(get) {
   if (abstract)   parts.push(abstract);
   if (conference) parts.push(`Conference: ${conference}`);
   if (funding)    parts.push(`Funding: ${funding}`);
-  return parts.join('\n\n');
+  // DSpace's Java CSV parser does not handle multi-line quoted cells — join
+  // sections with a pipe separator instead of literal newlines.
+  return parts.join(' | ');
 }
 
 function mapRowToDC(row, { maxAuthors = 0 } = {}) {
@@ -161,7 +163,9 @@ export function scopusCsvToDublinCoreCsv(buffer, { maxAuthors = 0, collectionHan
 
   const rows = records.map((row) => {
     const mapped = mapRowToDC(row, { maxAuthors });
-    return ['+', collectionHandle, ...DC_ELEMENTS.map((el) => mapped[el] || '')];
+    // DSpace's MetadataImport CSV parser does not support multi-line quoted cells.
+    // Strip all newlines from every field value so each record stays on one CSV line.
+    return ['+', collectionHandle, ...DC_ELEMENTS.map((el) => (mapped[el] || '').replace(/\r?\n/g, ' '))];
   });
 
   // No BOM. CRLF for Excel compatibility on Windows.

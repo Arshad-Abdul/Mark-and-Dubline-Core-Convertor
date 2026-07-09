@@ -3,7 +3,7 @@ import multer from 'multer';
 import { scopusCsvToDublinCoreCsv } from '../lib/scopusDublinCore.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB — Scopus exports with abstracts can be large
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {

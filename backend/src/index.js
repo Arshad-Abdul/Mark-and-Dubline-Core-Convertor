@@ -8,12 +8,19 @@ import scopusRouter from './routes/scopus.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ exposedHeaders: ['Content-Disposition', 'X-Record-Count', 'X-Warnings-Count', 'X-Warnings', 'X-File-Count'] }));
+app.use(cors({ exposedHeaders: ['Content-Disposition', 'X-Record-Count', 'X-Warnings-Count', 'X-Warnings', 'X-File-Count', 'X-Detected-Columns'] }));
 app.use('/api/convert/batch', batchRouter);
 app.use('/api/convert', convertRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/scopus-to-dc', scopusRouter);
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Global JSON error handler — catches multer and other middleware errors that
+// would otherwise fall through to Express's default HTML response.
+app.use((err, req, res, next) => {
+  console.error('[error]', err);
+  res.status(err.status || err.statusCode || 500).json({ error: err.message || 'Internal server error.' });
+});
 
 app.listen(PORT, () => {
   console.log(`MARC Convertor backend listening on http://localhost:${PORT}`);
