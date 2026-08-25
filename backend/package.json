@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch-path=./src src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -17,5 +18,8 @@
     "fast-xml-parser": "^5.9.3",
     "jszip": "^3.10.1",
     "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }

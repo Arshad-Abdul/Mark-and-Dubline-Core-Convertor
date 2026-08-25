@@ -1,9 +1,11 @@
 import express from 'express';
 import multer from 'multer';
+import { promises as fs } from 'fs';
 import { scopusCsvToDublinCoreCsv } from '../lib/scopusDublinCore.js';
+import { storage, fileFilter } from './convert.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB — Scopus exports with abstracts can be large
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter }); // 500 MB — Scopus exports with abstracts can be large
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
@@ -16,7 +18,8 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     const maxAuthors = parseInt(req.body.maxAuthors || '0', 10) || 0;
     const collectionHandle = String(req.body.collectionHandle || '').trim();
-    const { csv, recordCount, detectedColumns } = scopusCsvToDublinCoreCsv(req.file.buffer, { maxAuthors, collectionHandle });
+    const fileBuffer = await fs.readFile(req.file.path);
+    const { csv, recordCount, detectedColumns } = scopusCsvToDublinCoreCsv(fileBuffer, { maxAuthors, collectionHandle });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 
     res.setHeader('Content-Type', 'text/csv');
@@ -27,6 +30,10 @@ router.post('/', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Conversion failed.' });
+  } finally {
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
   }
 });
 

@@ -1,9 +1,36 @@
 import express from 'express';
 import multer from 'multer';
+import os from 'os';
+import path from 'path';
+import { promises as fs } from 'fs';
 import { convert, detectFormatFromFilename, SUPPORTED_FORMATS } from '../lib/convert.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+const storage = multer.diskStorage({
+  destination: os.tmpdir(),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const forbiddenMimes = [
+    'application/x-msdownload', 'application/x-sh', 'application/x-bat', 
+    'application/x-dosexec', 'application/octet-stream'
+  ];
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  // Basic security check to prevent executable uploads
+  if (forbiddenMimes.includes(file.mimetype) || ['.exe', '.bat', '.sh', '.cmd', '.msi'].includes(ext)) {
+    return cb(new Error('Invalid file type uploaded. Executables are not allowed.'));
+  }
+  
+  cb(null, true);
+};
+
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024, files: 50 }, fileFilter });
 
 const MIME_TYPES = {
   mrc: 'application/marc',
@@ -42,7 +69,8 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const options = parseConvertOptions(req.body);
-    const { output, recordCount, warnings } = await convert(req.file.buffer, inputFormat, outputFormat, options);
+    const fileBuffer = await fs.readFile(req.file.path);
+    const { output, recordCount, warnings } = await convert(fileBuffer, inputFormat, outputFormat, options);
 
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
     const outName = `${baseName}.${EXTENSIONS[outputFormat]}`;
@@ -56,8 +84,13 @@ router.post('/', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Conversion failed.' });
+  } finally {
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
   }
 });
 
-export { upload, parseConvertOptions, MIME_TYPES, EXTENSIONS };
+export { upload, parseConvertOptions, MIME_TYPES, EXTENSIONS, storage, fileFilter };
 export default router;
+

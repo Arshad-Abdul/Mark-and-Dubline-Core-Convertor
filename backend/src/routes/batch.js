@@ -1,11 +1,10 @@
 import express from 'express';
-import multer from 'multer';
 import JSZip from 'jszip';
+import { promises as fs } from 'fs';
 import { convert, detectFormatFromFilename, SUPPORTED_FORMATS } from '../lib/convert.js';
-import { parseConvertOptions, EXTENSIONS } from './convert.js';
+import { upload, parseConvertOptions, EXTENSIONS } from './convert.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 50 } });
 
 router.post('/', upload.array('files', 50), async (req, res) => {
   try {
@@ -30,7 +29,8 @@ router.post('/', upload.array('files', 50), async (req, res) => {
       }
 
       try {
-        const { output, recordCount, warnings } = await convert(file.buffer, inputFormat, outputFormat, options);
+        const fileBuffer = await fs.readFile(file.path);
+        const { output, recordCount, warnings } = await convert(fileBuffer, inputFormat, outputFormat, options);
         const baseName = file.originalname.replace(/\.[^.]+$/, '');
         const outName = `${baseName}.${EXTENSIONS[outputFormat]}`;
         zip.file(outName, output);
@@ -56,6 +56,12 @@ router.post('/', upload.array('files', 50), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Batch conversion failed.' });
+  } finally {
+    if (req.files) {
+      for (const file of req.files) {
+        await fs.unlink(file.path).catch(console.error);
+      }
+    }
   }
 });
 

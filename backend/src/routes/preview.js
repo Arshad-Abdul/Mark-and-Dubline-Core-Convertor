@@ -1,11 +1,11 @@
 import express from 'express';
-import multer from 'multer';
+import { promises as fs } from 'fs';
 import { parseInput, detectFormatFromFilename, listTags } from '../lib/convert.js';
 import { recordsToGrid } from '../lib/tabular.js';
 import { validateRecords } from '../lib/validate.js';
+import { upload } from './convert.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const PREVIEW_LIMIT = 20;
 
@@ -20,7 +20,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Could not detect input format from filename. Use .mrc, .mrk, .csv, .xlsx or .xml.' });
     }
 
-    const records = await parseInput(req.file.buffer, inputFormat);
+    const fileBuffer = await fs.readFile(req.file.path);
+    const records = await parseInput(fileBuffer, inputFormat);
     const warnings = validateRecords(records);
     const tags = listTags(records);
     const { header, labelRow, rows } = recordsToGrid(records.slice(0, PREVIEW_LIMIT));
@@ -39,6 +40,10 @@ router.post('/', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Preview failed.' });
+  } finally {
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
   }
 });
 
