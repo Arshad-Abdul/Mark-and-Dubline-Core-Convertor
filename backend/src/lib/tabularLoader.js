@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { parse as parseCsv } from 'csv-parse/sync';
 
 /**
@@ -12,51 +12,31 @@ import { parse as parseCsv } from 'csv-parse/sync';
 export async function loadTabularRecords(buffer, filename = '') {
   const ext = (filename.split('.').pop() || '').toLowerCase();
 
-  // 1. Try Excel parsing if extension is .xlsx or .xls
-  if (ext === 'xlsx' || ext === 'xls') {
+  // 1. Try Excel parsing if extension is .xlsx, .xls, .xlsb, or .xlsm
+  // Check magic bytes:
+  // - OpenXML (.xlsx): 50 4B 03 04 (PK..)
+  // - Compound Document / BIFF8 (.xls): D0 CF 11 E0 (magic ole header)
+  const isExcelExt = ['xlsx', 'xls', 'xlsb', 'xlsm'].includes(ext);
+  const isExcelMagic = buffer.length >= 4 && (
+    (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) ||
+    (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0)
+  );
+
+  if (isExcelExt || isExcelMagic) {
     try {
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
-      const sheet = workbook.worksheets[0];
-      if (!sheet) {
-        throw new Error('Excel workbook has no sheets.');
-      }
-
-      const rows = [];
-      sheet.eachRow({ includeEmpty: false }, (row) => {
-        // row.values is 1-indexed in ExcelJS; slice(1) aligns with columns
-        const vals = row.values.slice(1).map((v) => {
-          if (v == null) return '';
-          if (typeof v === 'object') {
-            if (v.text != null) return String(v.text).trim();
-            if (v.result != null) return String(v.result).trim();
-            return JSON.stringify(v);
-          }
-          return String(v).trim();
-        });
-        rows.push(vals);
-      });
-
-      if (rows.length > 0) {
-        const headers = rows[0].map((h) => String(h || '').trim());
-        const records = [];
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row.some((cell) => cell && cell.length > 0)) continue;
-          const obj = {};
-          headers.forEach((h, idx) => {
-            if (h) obj[h] = row[idx] !== undefined ? row[idx] : '';
-          });
-          records.push(obj);
-        }
-        if (records.length > 0) {
-          return records;
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      const firstSheetName = wb.SheetNames[0];
+      if (firstSheetName) {
+        const sheet = wb.Sheets[firstSheetName];
+        // raw: false converts numbers and dates into formatted strings
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        if (rows && rows.length > 0) {
+          return rows;
         }
       }
     } catch (excelErr) {
-      // If loading as binary xlsx failed (e.g. file is actually a tab-delimited text file named .xls),
-      // fall through to text parsing below.
-      console.warn(`ExcelJS load attempt failed (${excelErr.message}), falling back to text parsing.`);
+      // If loading as binary/xml Excel failed, fall through to text parsing below
+      console.warn(`Excel load attempt failed (${excelErr.message}), falling back to text parsing.`);
     }
   }
 
@@ -103,8 +83,7 @@ export async function loadTabularRecords(buffer, filename = '') {
       quote: isTabDelimited ? null : '"',
     });
   } catch (parseErr) {
-    // If quote parsing failed (e.g. invalid closing quote on line 808 due to stray quotes in abstracts/titles),
-    // fallback to literal parsing without quote enclosures so no data is dropped.
+    // If quote parsing failed, fallback to literal parsing with quote: null
     console.warn(`Initial CSV parse failed (${parseErr.message}), retrying with quote: null fallback.`);
     return parseCsv(text, {
       delimiter,
