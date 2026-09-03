@@ -1,5 +1,5 @@
-import { parse as parseCsv } from 'csv-parse/sync';
 import { stringify as stringifyCsv } from 'csv-stringify/sync';
+import { loadTabularRecords } from './tabularLoader.js';
 
 // Exact DC fields registered in this DSpace instance — verified against the
 // metadata registry. Order matches the required DSpace CSV column layout.
@@ -17,6 +17,7 @@ export const DC_ELEMENTS = [
   'dc.source',
   'dc.language.iso',
   'dc.rights',
+  'dc.description.provenance',
 ];
 
 // Language name → ISO 639-1 code (covers most Scopus language values).
@@ -144,19 +145,16 @@ function mapRowToDC(row, { maxAuthors = 0 } = {}) {
     'dc.source':              buildSource(get),
     'dc.language.iso':        toIso(get('Language of Original Document', 'Language')),
     'dc.rights':              get('Open Access', 'Open access'),
+    'dc.description.provenance': 'Scopus',
   };
 }
 
-export function scopusCsvToDublinCoreCsv(buffer, { maxAuthors = 0, collectionHandle = '' } = {}) {
-  const text = buffer.toString('utf-8').replace(/^﻿/, ''); // strip BOM
-  const records = parseCsv(text, {
-    columns: true,
-    skip_empty_lines: true,
-    relax_column_count: true,
-    trim: true,
-  });
+export async function scopusCsvToDublinCoreCsv(buffer, { filename = '', maxAuthors = 0, collectionHandle = '' } = {}) {
+  const records = await loadTabularRecords(buffer, filename);
 
-  if (records.length === 0) throw new Error('No records found in the Scopus CSV.');
+  if (!records || records.length === 0) {
+    throw new Error('No records found in the Scopus file.');
+  }
 
   // DSpace CSV: id and collection must be the first two columns.
   const HEADER = ['id', 'collection', ...DC_ELEMENTS];
@@ -168,12 +166,12 @@ export function scopusCsvToDublinCoreCsv(buffer, { maxAuthors = 0, collectionHan
     return ['+', collectionHandle, ...DC_ELEMENTS.map((el) => (mapped[el] || '').replace(/\r?\n/g, ' '))];
   });
 
-  // No BOM. CRLF for Excel compatibility on Windows.
+  // Windows CRLF for Excel compatibility.
   const csv = stringifyCsv([HEADER, ...rows], { record_delimiter: '\r\n' });
 
   return {
     csv,
     recordCount: records.length,
-    detectedColumns: Object.keys(records[0]),
+    detectedColumns: Object.keys(records[0] || {}),
   };
 }

@@ -9,39 +9,39 @@ interface ConvertState {
 }
 
 const DC_ELEMENTS = [
-  { key: 'dc.title',                  label: 'Title' },
-  { key: 'dc.contributor.author',     label: 'Author(s)' },
-  { key: 'dc.subject',                label: 'Keywords (Author + Index)' },
+  { key: 'dc.title',                  label: 'Article Title (TI)' },
+  { key: 'dc.contributor.author',     label: 'Authors / Full Names (AU)' },
+  { key: 'dc.subject',                label: 'Keywords (DE, ID)' },
   { key: 'dc.description.abstract',   label: 'Abstract, Conf., Funding' },
-  { key: 'dc.publisher',              label: 'Publisher' },
-  { key: 'dc.date.issued',            label: 'Publication Year' },
-  { key: 'dc.type',                   label: 'Document Type' },
-  { key: 'dc.identifier.doi',         label: 'DOI' },
-  { key: 'dc.identifier.scopus',      label: 'Scopus EID' },
-  { key: 'dc.identifier.issn',        label: 'ISSN' },
+  { key: 'dc.publisher',              label: 'Publisher (PU)' },
+  { key: 'dc.date.issued',            label: 'Publication Year (PY)' },
+  { key: 'dc.type',                   label: 'Document Type (DT)' },
+  { key: 'dc.identifier.doi',         label: 'DOI (DI)' },
+  { key: 'dc.identifier.wos',         label: 'WoS Accession / UT' },
+  { key: 'dc.identifier.issn',        label: 'ISSN / eISSN (SN)' },
   { key: 'dc.source',                 label: 'Journal, Vol., Issue, Pages' },
   { key: 'dc.language.iso',           label: 'Language (ISO 639-1)' },
-  { key: 'dc.rights',                 label: 'Open Access' },
-  { key: 'dc.description.provenance', label: 'Provenance: Scopus' },
+  { key: 'dc.rights',                 label: 'Open Access (OA)' },
+  { key: 'dc.description.provenance', label: 'Provenance: Web of Science' },
 ];
 
-const SCOPUS_COLUMNS_REFERENCE = [
-  'Authors', 'Author full names', 'Author(s) ID', 'Title', 'Year', 'Source title',
-  'Volume', 'Issue', 'Art. No.', 'Page start', 'Page end', 'Cited by', 'DOI', 'Link',
-  'Affiliations', 'Authors with affiliations', 'Abstract', 'Author Keywords',
-  'Index Keywords', 'Molecular Sequence Numbers', 'Chemicals/CAS', 'Tradenames',
-  'Manufacturers', 'Funding Details', 'Funding Texts', 'References',
-  'Correspondence Address', 'Editors', 'Publisher', 'Sponsors', 'Conference name',
-  'Conference date', 'Conference location', 'Conference code', 'ISSN', 'ISBN',
-  'CODEN', 'PubMed ID', 'Language of Original Document', 'Abbreviated Source Title',
-  'Document Type', 'Publication Stage', 'Open Access', 'Source', 'EID',
+const WOS_COLUMNS_REFERENCE = [
+  'Article Title', 'Authors', 'Author Full Names', 'Book Authors', 'Book Editors',
+  'Source Title', 'Publication Year', 'Volume', 'Issue', 'Beginning Page', 'Ending Page',
+  'Article Number', 'DOI', 'DOI Link', 'Abstract', 'Author Keywords', 'Keywords Plus',
+  'Addresses', 'Affiliations', 'Reprint Address', 'Funding Orgs', 'Funding Text',
+  'Cited References', 'Cited Reference Count', 'Times Cited, WoS Core', 'Publisher',
+  'ISSN', 'eISSN', 'ISBN', 'Language', 'Document Type', 'Conference Title',
+  'Conference Date', 'Conference Location', 'Conference Sponsor', 'UT (Unique WOS ID)',
+  'Open Access Designations',
 ];
 
-export default function ScopusConverter() {
+export default function WosConverter() {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [maxAuthors, setMaxAuthors] = useState<number>(20);
   const [collectionHandle, setCollectionHandle] = useState<string>('');
+  const [wosIdField, setWosIdField] = useState<'dc.identifier.wos' | 'dc.identifier.other'>('dc.identifier.wos');
   const [state, setState] = useState<ConvertState>({
     status: 'idle', message: '', recordCount: 0, detectedColumns: [],
   });
@@ -69,8 +69,9 @@ export default function ScopusConverter() {
       const form = new FormData();
       form.append('file', file);
       form.append('maxAuthors', String(maxAuthors));
+      form.append('wosIdField', wosIdField);
       if (collectionHandle.trim()) form.append('collectionHandle', collectionHandle.trim());
-      const res = await fetch('/api/scopus-to-dc', { method: 'POST', body: form });
+      const res = await fetch('/api/wos-to-dc', { method: 'POST', body: form });
 
       if (!res.ok) {
         const err = await res.json().catch(() => null);
@@ -98,7 +99,7 @@ export default function ScopusConverter() {
   };
 
   const missing = state.status === 'done'
-    ? SCOPUS_COLUMNS_REFERENCE.filter(
+    ? WOS_COLUMNS_REFERENCE.filter(
         (c) => !state.detectedColumns.some((d) => d.toLowerCase() === c.toLowerCase()),
       )
     : [];
@@ -126,7 +127,7 @@ export default function ScopusConverter() {
             e.target.value = '';
           }}
         />
-        <div className="text-4xl">📊</div>
+        <div className="text-4xl">🌐</div>
         {file ? (
           <div>
             <p className="font-medium text-slate-900 dark:text-slate-100">{file.name}</p>
@@ -134,8 +135,10 @@ export default function ScopusConverter() {
           </div>
         ) : (
           <div>
-            <p className="font-medium text-slate-900 dark:text-slate-100">Drop your Scopus export file here, or click to browse</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Supports CSV (.csv), Excel (.xlsx, .xls), and Tab-delimited (.tsv, .txt).</p>
+            <p className="font-medium text-slate-900 dark:text-slate-100">Drop your Web of Science export file here, or click to browse</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Supports Excel (.xlsx, .xls), CSV (.csv), and Tab-delimited (.tsv, .txt). Full records & custom selections supported.
+            </p>
           </div>
         )}
       </div>
@@ -165,43 +168,76 @@ export default function ScopusConverter() {
         )}
       </div>
 
-      {/* Author limit */}
-      <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3">
-        <div>
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Max authors per record</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-            Limits authors per row to keep records clean and readable. 0 means all authors.
-          </p>
+      {/* WoS Identifier Field & Author limit row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Identifier column in DSpace */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">WoS Identifier Field</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+              Column name in your DSpace schema for the UT / Accession number.
+            </p>
+          </div>
+          <div className="flex gap-2 mt-3">
+            {([
+              ['dc.identifier.wos', 'dc.identifier.wos'],
+              ['dc.identifier.other', 'dc.identifier.other'],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setWosIdField(val)}
+                className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-mono font-medium border transition-colors
+                  ${wosIdField === val
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-violet-300'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2 ml-4 shrink-0">
-          {[5, 10, 20, 50, 0].map((n) => (
-            <button
-              key={n}
-              onClick={() => setMaxAuthors(n)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors
-                ${maxAuthors === n
-                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                  : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-violet-300'}`}
-            >
-              {n === 0 ? 'All' : n}
-            </button>
-          ))}
+
+        {/* Max authors */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Max authors per record</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+              Limits authors per row to keep cells readable. 0 means all authors.
+            </p>
+          </div>
+          <div className="flex gap-1.5 mt-3 shrink-0">
+            {[5, 10, 20, 50, 0].map((n) => (
+              <button
+                key={n}
+                onClick={() => setMaxAuthors(n)}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium border transition-colors
+                  ${maxAuthors === n
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-violet-300'}`}
+              >
+                {n === 0 ? 'All' : n}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* DC mapping reference */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Scopus → Dublin Core field mapping</p>
+          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Web of Science → Dublin Core field mapping</p>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
-          {DC_ELEMENTS.map(({ key, label }) => (
-            <div key={key} className="flex items-baseline gap-1.5">
-              <span className="font-mono text-violet-600 dark:text-violet-400 shrink-0">{key}</span>
-              <span className="text-slate-400 dark:text-slate-500">→</span>
-              <span>{label}</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+          {DC_ELEMENTS.map(({ key, label }) => {
+            const displayKey = key === 'dc.identifier.wos' ? wosIdField : key;
+            return (
+              <div key={key} className="flex items-baseline gap-1.5">
+                <span className="font-mono text-violet-600 dark:text-violet-400 shrink-0">{displayKey}</span>
+                <span className="text-slate-400 dark:text-slate-500">→</span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -218,9 +254,9 @@ export default function ScopusConverter() {
           </div>
           {state.detectedColumns.length > 0 && (
             <div className="text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium">{state.detectedColumns.length} Scopus columns detected</span>
+              <span className="font-medium">{state.detectedColumns.length} WoS columns detected</span>
               {missing.length > 0 && (
-                <> · <span className="text-amber-600 dark:text-amber-400">{missing.length} not in this export (will be empty in DC output):</span>
+                <> · <span className="text-amber-600 dark:text-amber-400">{missing.length} reference columns not present in this custom selection:</span>
                 {' '}{missing.slice(0, 6).join(', ')}{missing.length > 6 ? ` +${missing.length - 6} more` : ''}</>
               )}
             </div>
@@ -237,7 +273,7 @@ export default function ScopusConverter() {
       </button>
 
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center -mt-2">
-        Output is a DSpace Dublin Core CSV format with collection handle and <span className="font-mono">dc.description.provenance = "Scopus"</span>.
+        Output is a DSpace Dublin Core CSV format with collection handle and <span className="font-mono">dc.description.provenance = "Web of Science"</span>.
       </p>
     </div>
   );

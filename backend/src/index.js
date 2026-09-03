@@ -4,6 +4,7 @@ import convertRouter from './routes/convert.js';
 import previewRouter from './routes/preview.js';
 import batchRouter from './routes/batch.js';
 import scopusRouter from './routes/scopus.js';
+import wosRouter from './routes/wos.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -13,6 +14,7 @@ app.use('/api/convert/batch', batchRouter);
 app.use('/api/convert', convertRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/scopus-to-dc', scopusRouter);
+app.use('/api/wos-to-dc', wosRouter);
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Global JSON error handler — catches multer and other middleware errors that

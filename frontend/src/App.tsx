@@ -6,10 +6,11 @@ import TagFilter from './components/TagFilter';
 import PreviewTable from './components/PreviewTable';
 import WarningsPanel from './components/WarningsPanel';
 import ScopusConverter from './components/ScopusConverter';
+import WosConverter from './components/WosConverter';
 import { convertFile, convertBatch, previewFile } from './api';
 import type { HistoryEntry, MarcFormat, PreviewResult } from './types';
 
-type AppMode = 'marc' | 'scopus';
+type AppMode = 'marc' | 'scopus' | 'wos';
 
 const HISTORY_KEY = 'marc-convertor-history';
 const THEME_KEY = 'marc-convertor-theme';
@@ -200,13 +201,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 text-slate-900 dark:text-slate-100">
-      <div className="max-w-2xl mx-auto px-4 py-12">
+      <div className="max-w-3xl mx-auto px-4 py-12">
 
         {/* Header */}
         <header className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">MARC Convertor</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Convert between .mrc, .mrk, CSV, Excel and MARCXML · Scopus → Dublin Core</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Convert between .mrc, .mrk, CSV, Excel and MARCXML · Scopus &amp; WoS → Dublin Core</p>
           </div>
           <button
             onClick={() => setIsDark((d) => !d)}
@@ -218,20 +219,23 @@ export default function App() {
         </header>
 
         {/* Mode tabs */}
-        <div className="flex gap-1 mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 p-1">
+        <div className="grid grid-cols-3 gap-1.5 mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 p-1.5">
           {([
-            ['marc',   '📄', 'MARC Conversion'],
-            ['scopus', '🔬', 'Scopus → Dublin Core'],
-          ] as const).map(([m, icon, label]) => (
+            ['marc',   '📄', 'MARC Conversion', 'MARC'],
+            ['scopus', '🔬', 'Scopus → Dublin Core', 'Scopus → DC'],
+            ['wos',    '🌐', 'Web of Science → Dublin Core', 'WoS → DC'],
+          ] as const).map(([m, icon, fullLabel, shortLabel]) => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 px-2 text-xs sm:text-sm font-medium transition-colors text-center whitespace-nowrap
                 ${mode === m
                   ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-              <span>{icon}</span>{label}
+              <span className="text-base shrink-0">{icon}</span>
+              <span className="hidden sm:inline">{fullLabel}</span>
+              <span className="sm:hidden">{shortLabel}</span>
             </button>
           ))}
         </div>
@@ -240,6 +244,9 @@ export default function App() {
 
           {/* ── Scopus mode ── */}
           {mode === 'scopus' && <ScopusConverter />}
+
+          {/* ── Web of Science mode ── */}
+          {mode === 'wos' && <WosConverter />}
 
           {/* ── MARC mode ── */}
           {mode === 'marc' && (

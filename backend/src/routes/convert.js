@@ -18,7 +18,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const forbiddenMimes = [
     'application/x-msdownload', 'application/x-sh', 'application/x-bat', 
-    'application/x-dosexec', 'application/octet-stream'
+    'application/x-dosexec'
   ];
   const ext = path.extname(file.originalname).toLowerCase();
   

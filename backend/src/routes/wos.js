@@ -1,11 +1,11 @@
 import express from 'express';
 import multer from 'multer';
 import { promises as fs } from 'fs';
-import { scopusCsvToDublinCoreCsv } from '../lib/scopusDublinCore.js';
+import { wosToDublinCoreCsv } from '../lib/wosDublinCore.js';
 import { storage, fileFilter } from './convert.js';
 
 const router = express.Router();
-const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter }); // 500 MB — Scopus exports with abstracts can be large
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter });
 
 const ALLOWED_EXTS = ['csv', 'tsv', 'txt', 'xlsx', 'xls'];
 
@@ -16,17 +16,20 @@ router.post('/', upload.single('file'), async (req, res) => {
     const ext = req.file.originalname.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.includes(ext)) {
       return res.status(400).json({
-        error: 'Please upload a Scopus export file (.csv, .tsv, .txt, .xlsx, or .xls).',
+        error: 'Please upload a Web of Science export file (.csv, .tsv, .txt, .xlsx, or .xls).',
       });
     }
 
     const maxAuthors = parseInt(req.body.maxAuthors || '0', 10) || 0;
     const collectionHandle = String(req.body.collectionHandle || '').trim();
+    const wosIdField = String(req.body.wosIdField || 'dc.identifier.wos').trim();
+
     const fileBuffer = await fs.readFile(req.file.path);
-    const { csv, recordCount, detectedColumns } = await scopusCsvToDublinCoreCsv(fileBuffer, {
+    const { csv, recordCount, detectedColumns } = await wosToDublinCoreCsv(fileBuffer, {
       filename: req.file.originalname,
       maxAuthors,
       collectionHandle,
+      wosIdField,
     });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 
@@ -46,3 +49,4 @@ router.post('/', upload.single('file'), async (req, res) => {
 });
 
 export default router;
+
