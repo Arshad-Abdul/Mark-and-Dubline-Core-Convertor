@@ -90,15 +90,28 @@ export async function loadTabularRecords(buffer, filename = '') {
     delimiter = ';';
   }
 
-  const records = parseCsv(text, {
-    delimiter,
-    columns: true,
-    skip_empty_lines: true,
-    relax_column_count: true,
-    trim: true,
-    relax_quotes: true,
-  });
+  const isTabDelimited = delimiter === '\t';
 
-  return records;
+  try {
+    return parseCsv(text, {
+      delimiter,
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      relax_quotes: true,
+      trim: false, // trim: true causes CSV_INVALID_CLOSING_QUOTE on unescaped quotes
+      quote: isTabDelimited ? null : '"',
+    });
+  } catch (parseErr) {
+    // If quote parsing failed (e.g. invalid closing quote on line 808 due to stray quotes in abstracts/titles),
+    // fallback to literal parsing without quote enclosures so no data is dropped.
+    console.warn(`Initial CSV parse failed (${parseErr.message}), retrying with quote: null fallback.`);
+    return parseCsv(text, {
+      delimiter,
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      quote: null,
+    });
+  }
 }
-
