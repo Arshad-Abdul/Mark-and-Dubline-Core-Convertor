@@ -30,11 +30,11 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${baseName}_dublin_core.csv"`);
     res.setHeader('X-Record-Count', String(recordCount));
     res.setHeader('X-Detected-Columns', encodeURIComponent(JSON.stringify(detectedColumns)));
-    res.send(Buffer.from(csv, 'utf-8'));
+    res.send(Buffer.from('\uFEFF' + csv, 'utf-8'));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Conversion failed.' });

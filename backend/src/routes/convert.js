@@ -35,7 +35,7 @@ const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024, files: 50
 const MIME_TYPES = {
   mrc: 'application/marc',
   mrk: 'text/plain',
-  csv: 'text/csv',
+  csv: 'text/csv; charset=utf-8',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   marcxml: 'application/xml',
 };

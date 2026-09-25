@@ -159,13 +159,13 @@ function stripLabelRow(rows) {
 
 export function gridToCsv({ header, labelRow, rows }) {
   const allRows = [header, ...(labelRow ? [labelRow] : []), ...rows];
-  // CRLF so Excel on Windows opens the file correctly on double-click.
-  // No BOM — it corrupts round-trip re-imports since csv-parse doesn't strip it.
-  return stringifyCsv(allRows, { record_delimiter: '\r\n' });
+  // UTF-8 BOM + CRLF so Excel on Windows opens UTF-8 characters cleanly on double-click.
+  return '\uFEFF' + stringifyCsv(allRows, { record_delimiter: '\r\n' });
 }
 
 export function csvToGrid(text) {
-  const rows = parseCsv(text, { relax_column_count: true });
+  const clean = String(text || '').replace(/^\uFEFF/, '');
+  const rows = parseCsv(clean, { relax_column_count: true });
   const [header, ...rest] = rows;
   return { header: header || [], rows: stripLabelRow(rest) };
 }

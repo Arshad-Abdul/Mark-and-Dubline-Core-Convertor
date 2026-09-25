@@ -92,18 +92,40 @@ function buildSubject(get) {
   return multiJoin([authorKw, indexKw]);
 }
 
+function formatIssn(value) {
+  if (!value) return '';
+  const parts = String(value)
+    .split(/[;,|]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return parts
+    .map((part) => {
+      if (/^[0-9A-Za-z]{4}-[0-9A-Za-z]{4}$/.test(part)) {
+        return part.toUpperCase();
+      }
+      const clean = part.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+      if (clean.length >= 5 && clean.length <= 8) {
+        const padded = clean.padStart(8, '0');
+        return `${padded.slice(0, 4)}-${padded.slice(4)}`;
+      }
+      return part;
+    })
+    .join('||');
+}
+
 function buildSource(get) {
   const journal = get('Source title');
   if (!journal) return '';
   const volume = get('Volume');
   const issue  = get('Issue');
-  const start  = get('Page start');
-  const end    = get('Page end');
+  const start  = get('Page start', 'Start Page');
+  const end    = get('Page end', 'End Page');
   const artNo  = get('Art. No.', 'Article Number');
   let src = journal;
   if (volume) src += `, vol. ${volume}`;
   if (issue)  src += `, no. ${issue}`;
-  if (start && end) src += `, pp. ${start}–${end}`;
+  if (start && end) src += `, pp. ${start}-${end}`;
   else if (start)   src += `, p. ${start}`;
   else if (artNo)   src += `, art. ${artNo}`;
   return src;
@@ -141,7 +163,7 @@ function mapRowToDC(row, { maxAuthors = 0 } = {}) {
     'dc.type':                get('Document Type', 'Document type'),
     'dc.identifier.doi':      get('DOI'),
     'dc.identifier.scopus':   get('EID'),
-    'dc.identifier.issn':     get('ISSN'),
+    'dc.identifier.issn':     formatIssn(get('ISSN')),
     'dc.source':              buildSource(get),
     'dc.language.iso':        toIso(get('Language of Original Document', 'Language')),
     'dc.rights':              get('Open Access', 'Open access'),
