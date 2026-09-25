@@ -1,4 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  Library,
+  FileCode2,
+  GraduationCap,
+  Globe,
+  Sun,
+  Moon,
+  Download,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 import Dropzone from './components/Dropzone';
 import FormatPicker from './components/FormatPicker';
 import History from './components/History';
@@ -157,7 +168,7 @@ export default function App() {
         }
         const result = await convertFile(files[0], settings.outputFormat, options);
         downloadBlob(result.blob, result.filename);
-        setSuccess(`Converted ${result.recordCount} record${result.recordCount === 1 ? '' : 's'} → ${result.filename}`);
+        setSuccess(`Successfully converted ${result.recordCount} record${result.recordCount === 1 ? '' : 's'} → ${result.filename}`);
         setLastWarnings(result.warnings);
         setLastWarningsCount(result.warnings.length);
         setHistory((prev) => [
@@ -176,7 +187,7 @@ export default function App() {
       } else {
         const result = await convertBatch(files, settings.outputFormat, options);
         downloadBlob(result.blob, 'converted-files.zip');
-        setSuccess(`Converted ${result.fileCount} files, ${result.recordCount} total records → converted-files.zip`);
+        setSuccess(`Successfully converted ${result.fileCount} files, ${result.recordCount.toLocaleString()} total records → converted-files.zip`);
         setLastWarningsCount(result.warningsCount);
         setHistory((prev) => [
           {
@@ -200,47 +211,71 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 text-slate-900 dark:text-slate-100">
-      <div className="max-w-3xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
+      <div className="max-w-3xl mx-auto px-4 py-10 sm:py-14">
 
-        {/* Header */}
-        <header className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">MARC Convertor</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Convert between .mrc, .mrk, CSV, Excel and MARCXML · Scopus &amp; WoS → Dublin Core</p>
+        {/* Institutional App Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 dark:bg-blue-600 text-white shadow-xs shrink-0">
+              <Library className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight text-slate-950 dark:text-white">
+                  Metadata Ingestion Suite
+                </h1>
+                <span className="hidden sm:inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 px-2 py-0.5 text-[10px] font-mono font-medium text-blue-700 dark:text-blue-300">
+                  DSpace 5–8 Ready
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Institutional Repository Interchange · Web of Science, Scopus &amp; MARC21
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => setIsDark((d) => !d)}
-            className="rounded-full border border-slate-200 dark:border-slate-700 w-10 h-10 flex items-center justify-center hover:border-violet-400 transition-colors"
-            aria-label="Toggle dark mode"
-          >
-            {isDark ? '🌙' : '☀️'}
-          </button>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/80 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Engine Active</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsDark((d) => !d)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600 transition-colors cursor-pointer"
+              aria-label="Toggle dark mode"
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
         </header>
 
-        {/* Mode tabs */}
-        <div className="grid grid-cols-3 gap-1.5 mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 p-1.5">
+        {/* Mode Navigation Tabs */}
+        <div className="grid grid-cols-3 gap-1.5 mb-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-200/60 dark:bg-slate-900/80 p-1.5">
           {([
-            ['marc',   '📄', 'MARC Conversion', 'MARC'],
-            ['scopus', '🔬', 'Scopus → Dublin Core', 'Scopus → DC'],
-            ['wos',    '🌐', 'Web of Science → Dublin Core', 'WoS → DC'],
-          ] as const).map(([m, icon, fullLabel, shortLabel]) => (
+            ['marc',   FileCode2,     'MARC Conversion',          'MARC21'],
+            ['scopus', GraduationCap, 'Scopus → Dublin Core',     'Scopus → DC'],
+            ['wos',    Globe,         'Web of Science → Dublin Core', 'WoS → DC'],
+          ] as const).map(([m, Icon, fullLabel, shortLabel]) => (
             <button
               key={m}
+              type="button"
               onClick={() => setMode(m)}
-              className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2.5 px-2 text-xs sm:text-sm font-medium transition-colors text-center whitespace-nowrap
+              className={`flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs sm:text-sm font-medium transition-all text-center whitespace-nowrap cursor-pointer
                 ${mode === m
-                  ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                  ? 'bg-white dark:bg-slate-800 text-blue-900 dark:text-blue-200 shadow-xs border border-slate-200/80 dark:border-slate-700 font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40'}`}
             >
-              <span className="text-base shrink-0">{icon}</span>
-              <span className="hidden sm:inline">{fullLabel}</span>
-              <span className="sm:hidden">{shortLabel}</span>
+              <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+              <span className="hidden md:inline">{fullLabel}</span>
+              <span className="md:hidden">{shortLabel}</span>
             </button>
           ))}
         </div>
 
-        <main className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 p-6 shadow-sm">
+        {/* Main Work Area Card */}
+        <main className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-6 sm:p-7 shadow-xs">
 
           {/* ── Scopus mode ── */}
           {mode === 'scopus' && <ScopusConverter />}
@@ -250,39 +285,44 @@ export default function App() {
 
           {/* ── MARC mode ── */}
           {mode === 'marc' && (
-            <>
+            <div className="flex flex-col gap-6">
               <Dropzone files={files} onFilesSelected={handleFilesSelected} onRemoveFile={handleRemoveFile} />
 
               {files.length === 1 && (
-                <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                  Detected input format:{' '}
-                  <span className="font-semibold text-violet-600 dark:text-violet-400">
-                    {inputFormat ? inputFormat.toUpperCase() : 'unknown'}
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                  <span>Detected source format:</span>
+                  <span className="font-mono font-semibold text-blue-700 dark:text-blue-300 uppercase">
+                    {inputFormat || 'unknown'}
                   </span>
                 </div>
               )}
 
-              <div className="mt-6">
-                <h2 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Convert to</h2>
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2.5">
+                  Target Export Format
+                </h2>
                 <FormatPicker value={settings.outputFormat} onChange={setOutputFormat} disabledFormat={inputFormat} />
               </div>
 
-              <label className="mt-4 flex items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={settings.includeLabels}
                   onChange={(e) => setIncludeLabels(e.target.checked)}
-                  className="accent-violet-600"
+                  className="accent-blue-600 rounded"
                 />
-                Include readable field names in CSV/Excel headers (e.g. "245$a Title")
+                <span>Include human-readable field descriptors in CSV/Excel header (e.g. "245$a Title")</span>
               </label>
 
               {isPreviewLoading && (
-                <p className="mt-4 text-sm text-slate-400 animate-pulse">Loading preview…</p>
+                <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                  <div className="h-3.5 w-3.5 border-2 border-slate-400/30 border-t-slate-600 rounded-full animate-spin" />
+                  <span>Generating schema inspection preview…</span>
+                </div>
               )}
 
               {preview && !isPreviewLoading && (
-                <div className="mt-6 flex flex-col gap-5">
+                <div className="flex flex-col gap-5 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <TagFilter tags={preview.tags} selected={selectedTags} onChange={setSelectedTags} />
                   <PreviewTable
                     header={preview.header}
@@ -296,32 +336,46 @@ export default function App() {
               )}
 
               {files.length > 1 && (
-                <p className="mt-4 text-xs text-slate-400">
-                  Preview and field filtering are available when converting one file at a time. With multiple files, all
-                  detected fields will be included; a conversion report is bundled in the downloaded zip.
+                <p className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                  Batch mode active: {files.length} files selected. All detected MARC tags will be preserved; a conversion audit report will be bundled in the download zip.
                 </p>
               )}
 
               {error && (
-                <div className="mt-4 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm px-4 py-2.5">
-                  {error}
+                <div className="rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs p-3.5 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{error}</span>
                 </div>
               )}
+
               {success && (
-                <div className="mt-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm px-4 py-2.5">
-                  {success}
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs p-3.5 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>{success}</span>
                 </div>
               )}
+
               {!preview && <WarningsPanel warnings={lastWarnings} totalCount={lastWarningsCount} />}
 
               <button
+                type="button"
                 onClick={handleConvert}
                 disabled={files.length === 0 || isConverting}
-                className="mt-6 w-full rounded-xl bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-3 transition-colors"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white font-medium text-sm py-3.5 px-4 shadow-sm transition-all cursor-pointer"
               >
-                {isConverting ? 'Converting…' : files.length > 1 ? `Convert ${files.length} Files & Download Zip` : 'Convert & Download'}
+                {isConverting ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing Conversion…</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    <span>{files.length > 1 ? `Convert ${files.length} Files & Download Archive` : 'Convert & Download'}</span>
+                  </>
+                )}
               </button>
-            </>
+            </div>
           )}
 
         </main>

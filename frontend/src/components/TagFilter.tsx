@@ -21,28 +21,29 @@ export default function TagFilter({ tags, selected, onChange }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
           Fields to include ({selected.size}/{tags.length})
         </h3>
         <button
+          type="button"
           onClick={() => onChange(allSelected ? new Set() : new Set(tags.map((t) => t.tag)))}
-          className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+          className="text-xs text-blue-700 dark:text-blue-400 font-medium hover:underline cursor-pointer"
         >
           {allSelected ? 'Deselect all' : 'Select all'}
         </button>
       </div>
-      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-3">
         {tags.map(({ tag, count }) => (
           <label
             key={tag}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs cursor-pointer transition-colors
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs cursor-pointer transition-colors
               ${selected.has(tag)
-                ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'}`}
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200 font-medium'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}
           >
             <input type="checkbox" className="hidden" checked={selected.has(tag)} onChange={() => toggle(tag)} />
             <span className="font-mono font-semibold">{tag}</span>
-            <span className="opacity-60">×{count}</span>
+            <span className="opacity-60 text-[10px]">×{count}</span>
           </label>
         ))}
       </div>
