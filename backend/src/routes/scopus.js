@@ -1,13 +1,56 @@
 import express from 'express';
 import multer from 'multer';
 import { promises as fs } from 'fs';
+import { parse as parseCsv } from 'csv-parse/sync';
 import { scopusCsvToDublinCoreCsv } from '../lib/scopusDublinCore.js';
 import { storage, fileFilter } from './convert.js';
 
 const router = express.Router();
-const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter }); // 500 MB — Scopus exports with abstracts can be large
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter });
 
 const ALLOWED_EXTS = ['csv', 'tsv', 'txt', 'xlsx', 'xls'];
+
+router.post('/preview', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+
+    const ext = req.file.originalname.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) {
+      return res.status(400).json({
+        error: 'Please upload a Scopus export file (.csv, .tsv, .txt, .xlsx, or .xls).',
+      });
+    }
+
+    const maxAuthors = parseInt(req.body.maxAuthors || '0', 10) || 0;
+    const collectionHandle = String(req.body.collectionHandle || '').trim();
+
+    const fileBuffer = await fs.readFile(req.file.path);
+    const { csv, recordCount, detectedColumns } = await scopusCsvToDublinCoreCsv(fileBuffer, {
+      filename: req.file.originalname,
+      maxAuthors,
+      collectionHandle,
+    });
+
+    const cleanCsv = csv.replace(/^\uFEFF/, '');
+    const allRows = parseCsv(cleanCsv, { relax_column_count: true });
+    const [header, ...rows] = allRows;
+
+    res.json({
+      recordCount,
+      detectedColumns,
+      header: header || [],
+      rows: rows.slice(0, 10),
+      previewCount: Math.min(10, rows.length),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Preview failed.' });
+  } finally {
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
+  }
+});
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
