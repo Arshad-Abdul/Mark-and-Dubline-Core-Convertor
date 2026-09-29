@@ -259,7 +259,7 @@ export default function App() {
             ['marc',   FileCode2,     'MARC Conversion',              'MARC21'],
             ['scopus', GraduationCap, 'Scopus → Dublin Core',         'Scopus → DC'],
             ['wos',    Globe,         'Web of Science → Dublin Core', 'WoS → DC'],
-            ['book',   BookOpen,      'CSV → Book Catalog',           'CSV → Books'],
+            ['book',   BookOpen,      'CSV / MARC → Book Catalog',    'Catalog → Books'],
           ] as const).map(([m, Icon, fullLabel, shortLabel]) => (
             <button
               key={m}

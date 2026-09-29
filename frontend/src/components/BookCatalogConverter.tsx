@@ -24,6 +24,7 @@ interface ConvertState {
 interface PreviewData {
   recordCount: number;
   detectedColumns: string[];
+  columnLabels?: Record<string, string>;
   effectiveMapping: Record<string, string | null>;
   header: string[];
   rows: string[][];
@@ -232,7 +233,7 @@ export default function BookCatalogConverter() {
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,.tsv,.txt,.xlsx,.xls"
+            accept=".csv,.tsv,.txt,.xlsx,.xls,.mrc,.mrk,.xml,.marcxml"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -271,16 +272,16 @@ export default function BookCatalogConverter() {
                     )}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Source file ready · Click or drag another file to replace
+                    Source file loaded · Click or drag another file to replace
                   </p>
                 </>
               ) : (
                 <>
                   <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                    Load Any CSV or Excel File (.csv, .xlsx, .xls, .tsv, .txt)
+                    Load Any Catalog File: MARC21 (.mrc), MarcEdit (.mrk), Excel, or CSV
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Smart auto-maps any column structure into the standard 12-column Book Catalog format
+                    Smart auto-maps any .mrc, .mrk, .xml, .xlsx, .xls, or .csv file into the standard 12-column Book Catalog format
                   </p>
                 </>
               )}
@@ -290,8 +291,8 @@ export default function BookCatalogConverter() {
           <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
             {!file && (
               <div className="hidden xl:flex items-center gap-1 mr-1">
-                {['.CSV', '.XLSX', '.XLS', '.TSV'].map((ext) => (
-                  <span key={ext} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                {['.MRC', '.MRK', '.CSV', '.XLSX', '.XLS', '.TSV', '.XML'].map((ext) => (
+                  <span key={ext} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
                     {ext}
                   </span>
                 ))}
@@ -467,10 +468,11 @@ export default function BookCatalogConverter() {
                         ${mappedTo
                           ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-medium'
                           : 'bg-slate-50 dark:bg-slate-900 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+                      title={preview?.columnLabels?.[col] || col}
                     >
-                      <span className="truncate">{col}</span>
+                      <span className="truncate">{preview?.columnLabels?.[col] || col}</span>
                       {mappedTo && (
-                        <span className="text-[10px] px-1 rounded bg-emerald-200/60 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-mono shrink-0">
+                        <span className="text-[10px] px-1 rounded bg-emerald-200/60 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-mono shrink-0 ml-1">
                           → {mappedTo}
                         </span>
                       )}
@@ -547,7 +549,7 @@ export default function BookCatalogConverter() {
                       <option value="">(None / Blank)</option>
                       {detectedCols.map((col) => (
                         <option key={col} value={col}>
-                          {col}
+                          {preview?.columnLabels?.[col] || col}
                         </option>
                       ))}
                     </select>

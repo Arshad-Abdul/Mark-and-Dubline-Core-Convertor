@@ -8,7 +8,7 @@ import { storage, fileFilter } from './convert.js';
 const router = express.Router();
 const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 }, fileFilter });
 
-const ALLOWED_EXTS = ['csv', 'tsv', 'txt', 'xlsx', 'xls'];
+const ALLOWED_EXTS = ['csv', 'tsv', 'txt', 'xlsx', 'xls', 'mrc', 'mrk', 'xml', 'marcxml'];
 
 function parseJsonField(val, fallback = {}) {
   if (!val) return fallback;
@@ -27,7 +27,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     const ext = req.file.originalname.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.includes(ext)) {
       return res.status(400).json({
-        error: 'Please upload a CSV, TSV, TXT, or Excel file (.csv, .tsv, .txt, .xlsx, .xls).',
+        error: 'Please upload a file in CSV, TSV, TXT, Excel (.xlsx, .xls), MARC21 (.mrc), MarcEdit (.mrk), or MARCXML (.xml) format.',
       });
     }
 
@@ -35,7 +35,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     const customDefaults = parseJsonField(req.body.customDefaults);
 
     const fileBuffer = await fs.readFile(req.file.path);
-    const { csv, recordCount, detectedColumns, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
+    const { csv, recordCount, detectedColumns, columnLabels, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
       filename: req.file.originalname,
       mapping,
       customDefaults,
@@ -48,6 +48,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     res.json({
       recordCount,
       detectedColumns,
+      columnLabels,
       effectiveMapping,
       header: header || BOOK_CATALOG_COLUMNS,
       rows: rows.slice(0, 10),
@@ -70,7 +71,7 @@ router.post('/convert', upload.single('file'), async (req, res) => {
     const ext = req.file.originalname.split('.').pop().toLowerCase();
     if (!ALLOWED_EXTS.includes(ext)) {
       return res.status(400).json({
-        error: 'Please upload a CSV, TSV, TXT, or Excel file (.csv, .tsv, .txt, .xlsx, .xls).',
+        error: 'Please upload a file in CSV, TSV, TXT, Excel (.xlsx, .xls), MARC21 (.mrc), MarcEdit (.mrk), or MARCXML (.xml) format.',
       });
     }
 

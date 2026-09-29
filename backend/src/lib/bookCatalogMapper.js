@@ -1,5 +1,10 @@
 import { stringify as stringifyCsv } from 'csv-stringify/sync';
 import { loadTabularRecords } from './tabularLoader.js';
+import { parseMarcBinary } from './marcBinary.js';
+import { parseMarcMnemonic } from './marcMnemonic.js';
+import { parseMarcXml } from './marcXml.js';
+import { recordsToGrid } from './tabular.js';
+import { getFieldLabel, getSubfieldLabel } from './marcDictionary.js';
 
 export const BOOK_CATALOG_COLUMNS = [
   'title',
@@ -31,38 +36,41 @@ export const COLUMN_DEFINITIONS = {
   price:       { label: 'Price',                    description: 'Price in local currency',        required: false },
 };
 
-// Aliases for intelligent auto-detection across diverse catalog and store export formats
+// Aliases for intelligent auto-detection across CSV, Excel, and MARC (.mrc, .mrk, .xml)
 const FIELD_ALIASES = {
   title: [
-    'title', 'book title', 'book_title', 'item title', 'item_title', 'publication title',
-    'article title', 'document title', 'work title', 'name', 'book name', 'ti', 'work',
+    '245$a+$b', '245$a', '245', 'title', 'book title', 'book_title', 'item title',
+    'item_title', 'publication title', 'article title', 'document title', 'work title',
+    'name', 'book name', 'ti', 'work',
   ],
   author: [
-    'author', 'authors', 'author(s)', 'creator', 'creators', 'writer', 'writers',
-    'written by', 'book author', 'book authors', 'author full names', 'author_name',
-    'author name', 'au', 'contributor', 'contributors', 'primary author',
+    '100$a+700$a', '100$a', '100', '700$a', '110$a', 'author', 'authors', 'author(s)',
+    'creator', 'creators', 'writer', 'writers', 'written by', 'book author', 'book authors',
+    'author full names', 'author_name', 'author name', 'au', 'contributor', 'contributors',
+    'primary author',
   ],
   isbn: [
-    'isbn', 'isbn-13', 'isbn13', 'isbn-10', 'isbn10', 'isbn/issn', 'international standard book number',
-    'standard number', 'book isbn', 'identifier', 'e-isbn', 'eisbn', 'isbn number',
+    '020$a', '020', 'isbn', 'isbn-13', 'isbn13', 'isbn-10', 'isbn10', 'isbn/issn',
+    'international standard book number', 'standard number', 'book isbn', 'identifier',
+    'e-isbn', 'eisbn', 'isbn number',
   ],
   publisher: [
-    'publisher', 'publisher name', 'publishing house', 'press', 'imprint', 'publication house',
-    'pub', 'pu', 'published by', 'distributor',
+    '264$b', '260$b', '264', '260', 'publisher', 'publisher name', 'publishing house',
+    'press', 'imprint', 'publication house', 'pub', 'pu', 'published by', 'distributor',
   ],
   year: [
-    'year', 'publication year', 'pub year', 'pub_year', 'published year', 'date',
-    'publication date', 'pub date', 'issued', 'date issued', 'py', 'copyright year',
+    '264$c', '260$c', 'year', 'publication year', 'pub year', 'pub_year', 'published year',
+    'date', 'publication date', 'pub date', 'issued', 'date issued', 'py', 'copyright year',
     'release year', 'pubdate', 'year published',
   ],
   subject: [
-    'subject', 'subjects', 'subject(s)', 'topic', 'topics', 'keywords', 'keyword',
-    'tags', 'tag', 'author keywords', 'mesh terms', 'index terms', 'discipline',
-    'subject headings', 'heading',
+    '650$a', '650', '653$a', '651$a', '600$a', 'subject', 'subjects', 'subject(s)',
+    'topic', 'topics', 'keywords', 'keyword', 'tags', 'tag', 'author keywords', 'mesh terms',
+    'index terms', 'discipline', 'subject headings', 'heading',
   ],
   description: [
-    'description', 'book description', 'abstract', 'summary', 'synopsis', 'overview',
-    'about', 'notes', 'annotation', 'blurb', 'ab', 'details', 'comment',
+    '520$a', '520', '500$a', 'description', 'book description', 'abstract', 'summary',
+    'synopsis', 'overview', 'about', 'notes', 'annotation', 'blurb', 'ab', 'details', 'comment',
   ],
   coverUrl: [
     'coverurl', 'cover_url', 'cover url', 'cover', 'cover image', 'coverimage',
@@ -70,21 +78,22 @@ const FIELD_ALIASES = {
     'thumbnail url', 'book cover', 'poster', 'cover_image_url', 'img_url', 'img',
   ],
   category: [
-    'category', 'categories', 'genre', 'genres', 'classification', 'class', 'section',
-    'collection', 'department', 'shelfmark', 'document type', 'type', 'format', 'call number',
+    '082$a', '050$a', '084$a', '080$a', 'category', 'categories', 'genre', 'genres',
+    'classification', 'class', 'section', 'collection', 'department', 'shelfmark',
+    'document type', 'type', 'format', 'call number',
   ],
   pages: [
-    'pages', 'page count', 'pagecount', 'number of pages', 'num pages', 'no of pages',
-    'pagination', 'extent', 'length', 'total pages', 'pgs', 'page',
+    '300$a', '300', 'pages', 'page count', 'pagecount', 'number of pages', 'num pages',
+    'no of pages', 'pagination', 'extent', 'length', 'total pages', 'pgs', 'page',
   ],
   url: [
-    'url', 'link', 'book url', 'book link', 'ebook url', 'e-book url', 'web link',
-    'website', 'uri', 'permalink', 'view url', 'download url', 'doi link', 'link to book',
-    'product url', 'source url', 'online link', 'doi',
+    '856$u', '856', 'url', 'link', 'book url', 'book link', 'ebook url', 'e-book url',
+    'web link', 'website', 'uri', 'permalink', 'view url', 'download url', 'doi link',
+    'link to book', 'product url', 'source url', 'online link', 'doi',
   ],
   price: [
-    'price', 'cost', 'amount', 'list price', 'retail price', 'mrp', 'rate', 'fee',
-    'charge', 'selling price', 'book price', 'inr', 'usd', 'eur', 'price (inr)',
+    '020$c', '365$b', 'price', 'cost', 'amount', 'list price', 'retail price', 'mrp',
+    'rate', 'fee', 'charge', 'selling price', 'book price', 'inr', 'usd', 'eur',
   ],
 };
 
@@ -94,6 +103,119 @@ function normalizeHeader(str) {
     .replace(/[_\-./\\]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Loads catalog records from any file: MARC (.mrc, .mrk, .xml), CSV, TSV, TXT, Excel (.xlsx, .xls)
+ * @param {Buffer} buffer
+ * @param {string} [filename='']
+ * @returns {Promise<{ records: Array<Record<string, string>>, detectedColumns: string[], columnLabels: Record<string, string> }>}
+ */
+export async function loadCatalogRecords(buffer, filename = '') {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+
+  let marcRecords = null;
+
+  // 1. Check if MRC (binary MARC21)
+  const isMrcExt = ext === 'mrc';
+  const isMrcSignature = buffer.length >= 25 && /^\d{5}/.test(buffer.slice(0, 5).toString('binary'));
+  if (isMrcExt || isMrcSignature) {
+    try {
+      const parsed = parseMarcBinary(buffer);
+      if (parsed && parsed.length > 0) marcRecords = parsed;
+    } catch (e) {
+      console.warn('parseMarcBinary failed, falling back:', e.message);
+    }
+  }
+
+  // 2. Check if MRK (MarcEdit / Mnemonic text)
+  if (!marcRecords) {
+    const isMrkExt = ext === 'mrk';
+    const textSample = buffer.slice(0, 2000).toString('utf-8');
+    const isMrkSignature = /^=(LDR|\d{3})\s/m.test(textSample);
+    if (isMrkExt || isMrkSignature) {
+      try {
+        const parsed = parseMarcMnemonic(buffer.toString('utf-8'));
+        if (parsed && parsed.length > 0) marcRecords = parsed;
+      } catch (e) {
+        console.warn('parseMarcMnemonic failed, falling back:', e.message);
+      }
+    }
+  }
+
+  // 3. Check if XML / MARCXML
+  if (!marcRecords) {
+    const isXmlExt = ext === 'xml' || ext === 'marcxml';
+    const textSample = buffer.slice(0, 2000).toString('utf-8');
+    const isXmlMarc = textSample.includes('<record') || textSample.includes('<collection');
+    if (isXmlExt && isXmlMarc) {
+      try {
+        const parsed = parseMarcXml(buffer.toString('utf-8'));
+        if (parsed && parsed.length > 0) marcRecords = parsed;
+      } catch (e) {
+        console.warn('parseMarcXml failed, falling back:', e.message);
+      }
+    }
+  }
+
+  // If MARC records detected:
+  if (marcRecords && marcRecords.length > 0) {
+    const grid = recordsToGrid(marcRecords, { includeLabels: false });
+    const columnLabels = {};
+
+    for (const key of grid.header) {
+      const [tag, code] = key.split('$');
+      const subLabel = code ? getSubfieldLabel(tag, code) : getFieldLabel(tag);
+      columnLabels[key] = subLabel ? `${key} · ${subLabel}` : key;
+    }
+
+    const has245a = grid.header.includes('245$a');
+    const has245b = grid.header.includes('245$b');
+    const has100a = grid.header.includes('100$a');
+    const has700a = grid.header.includes('700$a');
+
+    const synthesizedCols = [];
+    if (has245a && has245b) {
+      synthesizedCols.push('245$a+$b');
+      columnLabels['245$a+$b'] = '245$a+$b · Full Title (Title + Subtitle)';
+    }
+    if (has100a && has700a) {
+      synthesizedCols.push('100$a+700$a');
+      columnLabels['100$a+700$a'] = '100$a+700$a · All Authors (Primary + Added)';
+    }
+
+    const rows = grid.rows.map((row) => {
+      const obj = {};
+      grid.header.forEach((key, i) => {
+        obj[key] = row[i] || '';
+      });
+
+      if (has245a && has245b) {
+        const tA = (obj['245$a'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
+        const tB = (obj['245$b'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
+        obj['245$a+$b'] = tA && tB ? `${tA}: ${tB}` : (tA || tB);
+      }
+      if (has100a && has700a) {
+        const a1 = (obj['100$a'] || '').replace(/\s*[,/]\s*$/, '').trim();
+        const a7 = (obj['700$a'] || '').replace(/\s*[,/]\s*$/, '').trim();
+        obj['100$a+700$a'] = [a1, a7].filter(Boolean).join(' || ');
+      }
+
+      return obj;
+    });
+
+    const allHeaders = [...synthesizedCols, ...grid.header];
+    return { records: rows, detectedColumns: allHeaders, columnLabels };
+  }
+
+  // 4. Tabular loader (CSV, TSV, TXT, Excel .xlsx, .xls)
+  const rows = await loadTabularRecords(buffer, filename);
+  const detectedColumns = Object.keys(rows[0] || {});
+  const columnLabels = {};
+  for (const c of detectedColumns) {
+    columnLabels[c] = c;
+  }
+  return { records: rows, detectedColumns, columnLabels };
 }
 
 /**
@@ -125,14 +247,14 @@ export function autoDetectMapping(sourceHeaders = []) {
     if (mapping[targetCol]) continue;
     const aliases = FIELD_ALIASES[targetCol] || [];
 
-    // Check alias exact equality
+    // Exact alias match
     let matched = sourceHeaders.find((h) => {
       if (usedHeaders.has(h)) return false;
       const norm = normalizeHeader(h);
       return aliases.some((a) => normalizeHeader(a) === norm);
     });
 
-    // Check if header starts with or contains alias
+    // Substring / word match
     if (!matched) {
       matched = sourceHeaders.find((h) => {
         if (usedHeaders.has(h)) return false;
@@ -159,14 +281,11 @@ export function autoDetectMapping(sourceHeaders = []) {
 export function cleanIsbn(val) {
   if (!val) return '';
   const str = String(val).trim();
-  // Remove "ISBN", "ISBN-13:", "ISBN-10:", etc.
   const stripped = str.replace(/^(isbn(-?1[03])?[:\s]*)/i, '').trim();
-  // Extract alphanumeric sequences that match ISBN-10 or ISBN-13
   const matches = stripped.match(/[0-9]{1,5}[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9Xx]/g);
   if (matches && matches.length > 0) {
     return matches[0].replace(/\s+/g, '-').trim();
   }
-  // Fallback to removing whitespace
   return stripped.replace(/\s+/g, ' ');
 }
 
@@ -191,6 +310,16 @@ export function cleanPages(val) {
 }
 
 /**
+ * Cleans trailing punctuation like " /", " :", " =;,." from bibliographic fields
+ */
+export function cleanPunctuation(val) {
+  if (val == null) return '';
+  return String(val)
+    .replace(/\s*[:/=;,]\s*$/, '')
+    .trim();
+}
+
+/**
  * Sanitizes multi-line text into clean single-line or normalized representation.
  */
 export function sanitizeText(val) {
@@ -202,22 +331,22 @@ export function sanitizeText(val) {
 }
 
 /**
- * Transforms records into standard Book Catalog format based on user or auto-detected mappings.
+ * Transforms records from ANY format (MARC .mrc/.mrk/.xml, CSV, Excel, TSV)
+ * into standard Book Catalog CSV format.
  *
  * @param {Buffer} fileBuffer
  * @param {object} options
  * @param {string} [options.filename='']
- * @param {Record<string, string | null>} [options.mapping={}] - TargetCol -> SourceCol
- * @param {Record<string, string>} [options.customDefaults={}] - TargetCol -> Fallback static string
- * @returns {Promise<{ csv: string, recordCount: number, detectedColumns: string[], effectiveMapping: Record<string, string | null> }>}
+ * @param {Record<string, string | null>} [options.mapping={}]
+ * @param {Record<string, string>} [options.customDefaults={}]
+ * @returns {Promise<{ csv: string, recordCount: number, detectedColumns: string[], columnLabels: Record<string, string>, effectiveMapping: Record<string, string | null> }>}
  */
 export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
-  const records = await loadTabularRecords(fileBuffer, options.filename || '');
+  const { records, detectedColumns, columnLabels } = await loadCatalogRecords(fileBuffer, options.filename || '');
   if (!records || records.length === 0) {
     throw new Error('The uploaded file does not contain any valid records.');
   }
 
-  const detectedColumns = Object.keys(records[0] || {});
   const suggestedMapping = autoDetectMapping(detectedColumns);
   const effectiveMapping = { ...suggestedMapping, ...(options.mapping || {}) };
   const customDefaults = options.customDefaults || {};
@@ -229,7 +358,6 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
       const sourceCol = effectiveMapping[col];
       let val = sourceCol && record[sourceCol] != null ? String(record[sourceCol]).trim() : '';
 
-      // If mapped value is empty, use custom default if supplied
       if (!val && customDefaults[col]) {
         val = String(customDefaults[col]).trim();
       }
@@ -241,6 +369,8 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
         val = extractYear(val);
       } else if (col === 'pages') {
         val = cleanPages(val);
+      } else if (col === 'title' || col === 'author' || col === 'publisher') {
+        val = cleanPunctuation(sanitizeText(val));
       } else {
         val = sanitizeText(val);
       }
@@ -261,6 +391,7 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
     csv,
     recordCount: rows.length,
     detectedColumns,
+    columnLabels,
     effectiveMapping,
   };
 }
