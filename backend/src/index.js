@@ -5,16 +5,18 @@ import previewRouter from './routes/preview.js';
 import batchRouter from './routes/batch.js';
 import scopusRouter from './routes/scopus.js';
 import wosRouter from './routes/wos.js';
+import bookCatalogRouter from './routes/bookCatalog.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ exposedHeaders: ['Content-Disposition', 'X-Record-Count', 'X-Warnings-Count', 'X-Warnings', 'X-File-Count', 'X-Detected-Columns'] }));
+app.use(cors({ exposedHeaders: ['Content-Disposition', 'X-Record-Count', 'X-Warnings-Count', 'X-Warnings', 'X-File-Count', 'X-Detected-Columns', 'X-Effective-Mapping'] }));
 app.use('/api/convert/batch', batchRouter);
 app.use('/api/convert', convertRouter);
 app.use('/api/preview', previewRouter);
 app.use('/api/scopus-to-dc', scopusRouter);
 app.use('/api/wos-to-dc', wosRouter);
+app.use('/api/book-catalog', bookCatalogRouter);
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Global JSON error handler — catches multer and other middleware errors that

@@ -9,6 +9,7 @@ import {
   Download,
   CheckCircle2,
   AlertCircle,
+  BookOpen,
 } from 'lucide-react';
 import Dropzone from './components/Dropzone';
 import FormatPicker from './components/FormatPicker';
@@ -18,10 +19,11 @@ import PreviewTable from './components/PreviewTable';
 import WarningsPanel from './components/WarningsPanel';
 import ScopusConverter from './components/ScopusConverter';
 import WosConverter from './components/WosConverter';
+import BookCatalogConverter from './components/BookCatalogConverter';
 import { convertFile, convertBatch, previewFile } from './api';
 import type { HistoryEntry, MarcFormat, PreviewResult } from './types';
 
-type AppMode = 'marc' | 'scopus' | 'wos';
+type AppMode = 'marc' | 'scopus' | 'wos' | 'book';
 
 const HISTORY_KEY = 'marc-convertor-history';
 const THEME_KEY = 'marc-convertor-theme';
@@ -252,11 +254,12 @@ export default function App() {
         </header>
 
         {/* Mode Navigation Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 mb-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-200/60 dark:bg-slate-900/80 p-1.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-200/60 dark:bg-slate-900/80 p-1.5">
           {([
-            ['marc',   FileCode2,     'MARC Conversion',          'MARC21'],
-            ['scopus', GraduationCap, 'Scopus → Dublin Core',     'Scopus → DC'],
+            ['marc',   FileCode2,     'MARC Conversion',              'MARC21'],
+            ['scopus', GraduationCap, 'Scopus → Dublin Core',         'Scopus → DC'],
             ['wos',    Globe,         'Web of Science → Dublin Core', 'WoS → DC'],
+            ['book',   BookOpen,      'CSV → Book Catalog',           'CSV → Books'],
           ] as const).map(([m, Icon, fullLabel, shortLabel]) => (
             <button
               key={m}
@@ -268,14 +271,17 @@ export default function App() {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40'}`}
             >
               <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-              <span className="hidden md:inline">{fullLabel}</span>
-              <span className="md:hidden">{shortLabel}</span>
+              <span className="hidden xl:inline">{fullLabel}</span>
+              <span className="xl:hidden">{shortLabel}</span>
             </button>
           ))}
         </div>
 
         {/* Main Work Area Card */}
         <main className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-6 sm:p-7 shadow-xs">
+
+          {/* ── Book Catalog mode ── */}
+          {mode === 'book' && <BookCatalogConverter />}
 
           {/* ── Scopus mode ── */}
           {mode === 'scopus' && <ScopusConverter />}
