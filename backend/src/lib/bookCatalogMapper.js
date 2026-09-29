@@ -36,41 +36,43 @@ export const COLUMN_DEFINITIONS = {
   price:       { label: 'Price',                    description: 'Price in local currency',        required: false },
 };
 
-// Aliases for intelligent auto-detection across CSV, Excel, and MARC (.mrc, .mrk, .xml)
+// Prioritized aliases for auto-detection across CSV, Excel, and MARC (.mrc, .mrk, .xml)
 const FIELD_ALIASES = {
   title: [
     '245$a+$b', '245$a', '245', 'title', 'book title', 'book_title', 'item title',
     'item_title', 'publication title', 'article title', 'document title', 'work title',
-    'name', 'book name', 'ti', 'work',
+    'name', 'book name', 'ti', 'work', '246$a', '130$a', '240$a',
   ],
   author: [
-    '100$a+700$a', '100$a', '100', '700$a', '110$a', 'author', 'authors', 'author(s)',
-    'creator', 'creators', 'writer', 'writers', 'written by', 'book author', 'book authors',
-    'author full names', 'author_name', 'author name', 'au', 'contributor', 'contributors',
-    'primary author',
+    'MARC_AUTHORS', '100$a+700$a', '100$a', '700$a', '110$a', '710$a', 'author', 'authors',
+    'author(s)', 'creator', 'creators', 'writer', 'writers', 'written by', 'book author',
+    'book authors', 'author full names', 'author_name', 'author name', 'au', 'contributor',
+    'contributors', 'primary author', '245$c',
   ],
   isbn: [
-    '020$a', '020', 'isbn', 'isbn-13', 'isbn13', 'isbn-10', 'isbn10', 'isbn/issn',
-    'international standard book number', 'standard number', 'book isbn', 'identifier',
-    'e-isbn', 'eisbn', 'isbn number',
+    'MARC_ISBN', '020$a', '020', 'isbn', 'isbn-13', 'isbn13', 'isbn-10', 'isbn10',
+    'isbn/issn', 'international standard book number', 'standard number', 'book isbn',
+    'identifier', '776$z', 'e-isbn', 'eisbn', 'isbn number', '022$a',
   ],
   publisher: [
-    '264$b', '260$b', '264', '260', 'publisher', 'publisher name', 'publishing house',
-    'press', 'imprint', 'publication house', 'pub', 'pu', 'published by', 'distributor',
+    'MARC_PUBLISHER', '264$b', '260$b', '264', '260', 'publisher', 'publisher name',
+    'publishing house', 'press', 'imprint', 'publication house', 'pub', 'pu',
+    'published by', 'distributor',
   ],
   year: [
-    '264$c', '260$c', 'year', 'publication year', 'pub year', 'pub_year', 'published year',
-    'date', 'publication date', 'pub date', 'issued', 'date issued', 'py', 'copyright year',
-    'release year', 'pubdate', 'year published',
+    'MARC_YEAR', '264$c', '260$c', 'year', 'publication year', 'pub year', 'pub_year',
+    'published year', 'date', 'publication date', 'pub date', 'issued', 'date issued',
+    'py', 'copyright year', 'release year', 'pubdate', 'year published', '008_year',
   ],
   subject: [
-    '650$a', '650', '653$a', '651$a', '600$a', 'subject', 'subjects', 'subject(s)',
-    'topic', 'topics', 'keywords', 'keyword', 'tags', 'tag', 'author keywords', 'mesh terms',
-    'index terms', 'discipline', 'subject headings', 'heading',
+    'MARC_SUBJECTS', '650$a', '651$a', '653$a', '600$a', '610$a', 'subject', 'subjects',
+    'subject(s)', 'topic', 'topics', 'keywords', 'keyword', 'tags', 'tag',
+    'author keywords', 'mesh terms', 'index terms', 'discipline', 'subject headings',
   ],
   description: [
-    '520$a', '520', '500$a', 'description', 'book description', 'abstract', 'summary',
-    'synopsis', 'overview', 'about', 'notes', 'annotation', 'blurb', 'ab', 'details', 'comment',
+    'MARC_DESCRIPTION', '520$a', '520', 'description', 'book description', 'abstract',
+    'summary', 'synopsis', '505$t', '505$a', '500$a', 'overview', 'about', 'notes',
+    'annotation', 'blurb', 'ab', 'details', 'comment',
   ],
   coverUrl: [
     'coverurl', 'cover_url', 'cover url', 'cover', 'cover image', 'coverimage',
@@ -78,13 +80,15 @@ const FIELD_ALIASES = {
     'thumbnail url', 'book cover', 'poster', 'cover_image_url', 'img_url', 'img',
   ],
   category: [
-    '082$a', '050$a', '084$a', '080$a', 'category', 'categories', 'genre', 'genres',
-    'classification', 'class', 'section', 'collection', 'department', 'shelfmark',
-    'document type', 'type', 'format', 'call number',
+    'MARC_CATEGORY', '490$a', '830$a', '655$a', '082$a', '050$a', '084$a', '080$a',
+    'category', 'categories', 'genre', 'genres', 'classification', 'class', 'section',
+    'collection', 'department', 'shelfmark', 'document type', 'type', 'format',
+    'call number',
   ],
   pages: [
-    '300$a', '300', 'pages', 'page count', 'pagecount', 'number of pages', 'num pages',
-    'no of pages', 'pagination', 'extent', 'length', 'total pages', 'pgs', 'page',
+    'MARC_PAGES', '300$a', '300', 'pages', 'page count', 'pagecount', 'number of pages',
+    'num pages', 'no of pages', 'pagination', 'extent', 'length', 'total pages',
+    'pgs', 'page',
   ],
   url: [
     '856$u', '856', 'url', 'link', 'book url', 'book link', 'ebook url', 'e-book url',
@@ -92,8 +96,8 @@ const FIELD_ALIASES = {
     'link to book', 'product url', 'source url', 'online link', 'doi',
   ],
   price: [
-    '020$c', '365$b', 'price', 'cost', 'amount', 'list price', 'retail price', 'mrp',
-    'rate', 'fee', 'charge', 'selling price', 'book price', 'inr', 'usd', 'eur',
+    'MARC_PRICE', '020$c', '365$b', 'price', 'cost', 'amount', 'list price',
+    'retail price', 'mrp', 'rate', 'fee', 'charge', 'selling price', 'book price',
   ],
 };
 
@@ -102,6 +106,18 @@ function normalizeHeader(str) {
     .toLowerCase()
     .replace(/[_\-./\\]+/g, ' ')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Strips relator terms and cataloging punctuation from author names
+ * e.g. "Falola, Toyin, editor." -> "Falola, Toyin"
+ */
+function cleanAuthorName(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/,\s*(?:editor|author|ill|compiler|ed|tr|adapter|trans)\.?$/i, '')
+    .replace(/\s*[,/]\s*$/, '')
     .trim();
 }
 
@@ -169,20 +185,30 @@ export async function loadCatalogRecords(buffer, filename = '') {
       columnLabels[key] = subLabel ? `${key} · ${subLabel}` : key;
     }
 
-    const has245a = grid.header.includes('245$a');
-    const has245b = grid.header.includes('245$b');
-    const has100a = grid.header.includes('100$a');
-    const has700a = grid.header.includes('700$a');
+    // Synthesized smart fields for high-quality book catalog extraction
+    const synthesizedCols = [
+      '245$a+$b',
+      'MARC_AUTHORS',
+      'MARC_ISBN',
+      'MARC_PUBLISHER',
+      'MARC_YEAR',
+      'MARC_SUBJECTS',
+      'MARC_DESCRIPTION',
+      'MARC_CATEGORY',
+      'MARC_PAGES',
+      'MARC_PRICE',
+    ];
 
-    const synthesizedCols = [];
-    if (has245a && has245b) {
-      synthesizedCols.push('245$a+$b');
-      columnLabels['245$a+$b'] = '245$a+$b · Full Title (Title + Subtitle)';
-    }
-    if (has100a && has700a) {
-      synthesizedCols.push('100$a+700$a');
-      columnLabels['100$a+700$a'] = '100$a+700$a · All Authors (Primary + Added)';
-    }
+    columnLabels['245$a+$b'] = '245$a+$b · Title (Title + Subtitle)';
+    columnLabels['MARC_AUTHORS'] = 'MARC_AUTHORS · All Authors (100 + 700 + 245$c)';
+    columnLabels['MARC_ISBN'] = 'MARC_ISBN · ISBN (020$a / 776$z)';
+    columnLabels['MARC_PUBLISHER'] = 'MARC_PUBLISHER · Publisher (264$b / 260$b)';
+    columnLabels['MARC_YEAR'] = 'MARC_YEAR · Publication Year (264$c / 260$c / 008)';
+    columnLabels['MARC_SUBJECTS'] = 'MARC_SUBJECTS · Subjects (650 + 651 + 653)';
+    columnLabels['MARC_DESCRIPTION'] = 'MARC_DESCRIPTION · Summary / Abstract (520$a / 505 / 500)';
+    columnLabels['MARC_CATEGORY'] = 'MARC_CATEGORY · Category / Series (490 / 082 / 050)';
+    columnLabels['MARC_PAGES'] = 'MARC_PAGES · Extent / Page Count (300$a)';
+    columnLabels['MARC_PRICE'] = 'MARC_PRICE · Price (020$c / 365$b)';
 
     const rows = grid.rows.map((row) => {
       const obj = {};
@@ -190,16 +216,87 @@ export async function loadCatalogRecords(buffer, filename = '') {
         obj[key] = row[i] || '';
       });
 
-      if (has245a && has245b) {
-        const tA = (obj['245$a'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
-        const tB = (obj['245$b'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
-        obj['245$a+$b'] = tA && tB ? `${tA}: ${tB}` : (tA || tB);
+      // 1. Title
+      const tA = (obj['245$a'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
+      const tB = (obj['245$b'] || '').replace(/\s*[:/=;,]\s*$/, '').trim();
+      obj['245$a+$b'] = tA && tB ? `${tA}: ${tB}` : (tA || tB || obj['246$a'] || obj['130$a'] || '');
+
+      // 2. Authors (Combine 100$a, 700$a, 110$a, or 245$c)
+      const authorsList = [];
+      if (obj['100$a']) {
+        authorsList.push(...obj['100$a'].split(' | ').map(cleanAuthorName));
       }
-      if (has100a && has700a) {
-        const a1 = (obj['100$a'] || '').replace(/\s*[,/]\s*$/, '').trim();
-        const a7 = (obj['700$a'] || '').replace(/\s*[,/]\s*$/, '').trim();
-        obj['100$a+700$a'] = [a1, a7].filter(Boolean).join(' || ');
+      if (obj['700$a']) {
+        authorsList.push(...obj['700$a'].split(' | ').map(cleanAuthorName));
       }
+      if (authorsList.length === 0 && obj['110$a']) {
+        authorsList.push(...obj['110$a'].split(' | ').map(cleanAuthorName));
+      }
+      if (authorsList.length === 0 && obj['245$c']) {
+        // e.g. "edited by Toyin Falola and Matthew M. Heaton."
+        const rawC = obj['245$c'].replace(/^(?:edited by|by|written by|compiled by)\s+/i, '').replace(/\.$/, '').trim();
+        if (rawC) authorsList.push(rawC);
+      }
+      obj['MARC_AUTHORS'] = [...new Set(authorsList.filter(Boolean))].join('; ');
+
+      // 3. ISBN
+      obj['MARC_ISBN'] = obj['020$a'] || obj['776$z'] || obj['022$a'] || '';
+
+      // 4. Publisher
+      const pub = obj['264$b'] || obj['260$b'] || '';
+      obj['MARC_PUBLISHER'] = pub.replace(/\s*[,/;:.]\s*$/, '').trim();
+
+      // 5. Year
+      let yr = obj['264$c'] || obj['260$c'] || '';
+      if (!yr && obj['008'] && obj['008'].length >= 11) {
+        const match008 = obj['008'].slice(7, 11).match(/\b(1[789]\d{2}|20\d{2})\b/);
+        if (match008) yr = match008[1];
+      }
+      obj['MARC_YEAR'] = yr;
+
+      // 6. Subjects (650 topical, 651 geographic, 653 uncontrolled)
+      const subjects = [];
+      const s650 = obj['650$a'] ? obj['650$a'].split(' | ') : [];
+      const s650x = obj['650$x'] ? obj['650$x'].split(' | ') : [];
+      const s651 = obj['651$a'] ? obj['651$a'].split(' | ') : [];
+      const s651x = obj['651$x'] ? obj['651$x'].split(' | ') : [];
+      const s653 = obj['653$a'] ? obj['653$a'].split(' | ') : [];
+
+      // Combine main subject with subdivisions if aligned
+      for (let i = 0; i < Math.max(s650.length, s650x.length); i++) {
+        const a = (s650[i] || '').replace(/\.$/, '').trim();
+        const x = (s650x[i] || '').replace(/\.$/, '').trim();
+        if (a && x) subjects.push(`${a} -- ${x}`);
+        else if (a) subjects.push(a);
+        else if (x) subjects.push(x);
+      }
+      for (let i = 0; i < Math.max(s651.length, s651x.length); i++) {
+        const a = (s651[i] || '').replace(/\.$/, '').trim();
+        const x = (s651x[i] || '').replace(/\.$/, '').trim();
+        if (a && x) subjects.push(`${a} -- ${x}`);
+        else if (a) subjects.push(a);
+        else if (x) subjects.push(x);
+      }
+      for (const s of s653) {
+        if (s) subjects.push(s.replace(/\.$/, '').trim());
+      }
+      obj['MARC_SUBJECTS'] = [...new Set(subjects.filter(Boolean))].join('; ');
+
+      // 7. Description (520 Abstract preferred, fallback to 505 or 500)
+      obj['MARC_DESCRIPTION'] = obj['520$a'] || obj['505$t'] || obj['505$a'] || obj['500$a'] || '';
+
+      // 8. Category (490 series, 830, 082 Dewey, 050 LCC)
+      obj['MARC_CATEGORY'] = obj['490$a'] || obj['830$a'] || obj['655$a'] || obj['082$a'] || obj['050$a'] || '';
+
+      // 9. Pages
+      obj['MARC_PAGES'] = obj['300$a'] || '';
+
+      // 10. Price (Strip "No price", "Unpriced", "Free" so clean fallback can apply)
+      let priceVal = obj['020$c'] || obj['365$b'] || '';
+      if (/^(?:no price|unpriced|free|n\/?a)$/i.test(priceVal.trim())) {
+        priceVal = '';
+      }
+      obj['MARC_PRICE'] = priceVal;
 
       return obj;
     });
@@ -220,6 +317,8 @@ export async function loadCatalogRecords(buffer, filename = '') {
 
 /**
  * Automatically detects the best source column match for each of the 12 target columns.
+ * Prioritizes aliases in their defined order.
+ *
  * @param {string[]} sourceHeaders
  * @returns {Record<string, string | null>}
  */
@@ -242,28 +341,38 @@ export function autoDetectMapping(sourceHeaders = []) {
     }
   }
 
-  // 2. Alias matches
+  // 2. Alias matches in priority order
   for (const targetCol of BOOK_CATALOG_COLUMNS) {
     if (mapping[targetCol]) continue;
     const aliases = FIELD_ALIASES[targetCol] || [];
 
-    // Exact alias match
-    let matched = sourceHeaders.find((h) => {
-      if (usedHeaders.has(h)) return false;
-      const norm = normalizeHeader(h);
-      return aliases.some((a) => normalizeHeader(a) === norm);
-    });
+    // Exact alias match by priority order of aliases
+    let matched = null;
+    for (const alias of aliases) {
+      const normAlias = normalizeHeader(alias);
+      const found = sourceHeaders.find(
+        (h) => !usedHeaders.has(h) && normalizeHeader(h) === normAlias
+      );
+      if (found) {
+        matched = found;
+        break;
+      }
+    }
 
-    // Substring / word match
+    // Substring / word match fallback
     if (!matched) {
-      matched = sourceHeaders.find((h) => {
-        if (usedHeaders.has(h)) return false;
-        const norm = normalizeHeader(h);
-        return aliases.some((a) => {
-          const normA = normalizeHeader(a);
+      for (const alias of aliases) {
+        const normA = normalizeHeader(alias);
+        const found = sourceHeaders.find((h) => {
+          if (usedHeaders.has(h)) return false;
+          const norm = normalizeHeader(h);
           return norm === normA || norm.includes(` ${normA} `) || norm.startsWith(`${normA} `) || norm.endsWith(` ${normA}`);
         });
-      });
+        if (found) {
+          matched = found;
+          break;
+        }
+      }
     }
 
     if (matched) {
@@ -310,7 +419,7 @@ export function cleanPages(val) {
 }
 
 /**
- * Cleans trailing punctuation like " /", " :", " =;,." from bibliographic fields
+ * Cleans trailing cataloging punctuation like " /", " :", " =;,." from bibliographic fields
  */
 export function cleanPunctuation(val) {
   if (val == null) return '';
@@ -334,11 +443,16 @@ export function sanitizeText(val) {
  * Transforms records from ANY format (MARC .mrc/.mrk/.xml, CSV, Excel, TSV)
  * into standard Book Catalog CSV format.
  *
+ * Supports:
+ * - `customOverrides`: Explicit manual value applied to all records for that column
+ * - `customDefaults`: Fallback value applied if source value is missing or empty
+ *
  * @param {Buffer} fileBuffer
  * @param {object} options
  * @param {string} [options.filename='']
  * @param {Record<string, string | null>} [options.mapping={}]
  * @param {Record<string, string>} [options.customDefaults={}]
+ * @param {Record<string, string>} [options.customOverrides={}]
  * @returns {Promise<{ csv: string, recordCount: number, detectedColumns: string[], columnLabels: Record<string, string>, effectiveMapping: Record<string, string | null> }>}
  */
 export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
@@ -350,16 +464,30 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
   const suggestedMapping = autoDetectMapping(detectedColumns);
   const effectiveMapping = { ...suggestedMapping, ...(options.mapping || {}) };
   const customDefaults = options.customDefaults || {};
+  const customOverrides = options.customOverrides || {};
 
   const rows = [];
   for (const record of records) {
     const row = {};
     for (const col of BOOK_CATALOG_COLUMNS) {
-      const sourceCol = effectiveMapping[col];
-      let val = sourceCol && record[sourceCol] != null ? String(record[sourceCol]).trim() : '';
+      let val = '';
 
-      if (!val && customDefaults[col]) {
-        val = String(customDefaults[col]).trim();
+      // Check if user set a manual fixed override for all records
+      if (customOverrides[col] !== undefined && customOverrides[col] !== '') {
+        val = String(customOverrides[col]).trim();
+      } else {
+        const sourceCol = effectiveMapping[col];
+        val = sourceCol && record[sourceCol] != null ? String(record[sourceCol]).trim() : '';
+
+        // If price is literal "No price" or "Unpriced", treat as empty so fallback/override can apply
+        if (col === 'price' && /^(?:no price|unpriced|n\/?a)$/i.test(val)) {
+          val = '';
+        }
+
+        // Apply fallback default if empty
+        if (!val && customDefaults[col]) {
+          val = String(customDefaults[col]).trim();
+        }
       }
 
       // Column-specific cleaning

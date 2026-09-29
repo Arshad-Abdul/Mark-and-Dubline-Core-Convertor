@@ -33,12 +33,14 @@ router.post('/preview', upload.single('file'), async (req, res) => {
 
     const mapping = parseJsonField(req.body.mapping);
     const customDefaults = parseJsonField(req.body.customDefaults);
+    const customOverrides = parseJsonField(req.body.customOverrides);
 
     const fileBuffer = await fs.readFile(req.file.path);
     const { csv, recordCount, detectedColumns, columnLabels, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
       filename: req.file.originalname,
       mapping,
       customDefaults,
+      customOverrides,
     });
 
     const cleanCsv = csv.replace(/^\uFEFF/, '');
@@ -77,12 +79,14 @@ router.post('/convert', upload.single('file'), async (req, res) => {
 
     const mapping = parseJsonField(req.body.mapping);
     const customDefaults = parseJsonField(req.body.customDefaults);
+    const customOverrides = parseJsonField(req.body.customOverrides);
 
     const fileBuffer = await fs.readFile(req.file.path);
     const { csv, recordCount, detectedColumns, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
       filename: req.file.originalname,
       mapping,
       customDefaults,
+      customOverrides,
     });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 

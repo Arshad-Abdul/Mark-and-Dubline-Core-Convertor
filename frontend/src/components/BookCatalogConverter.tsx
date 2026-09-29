@@ -13,6 +13,7 @@ import {
   Sparkles,
   ShieldCheck,
   RotateCcw,
+  Edit3,
 } from 'lucide-react';
 
 interface ConvertState {
@@ -35,15 +36,15 @@ export const TARGET_COLUMNS = [
   { key: 'title',       label: 'Book title',                 note: 'Book title',                     sample: 'Clean Code: A Handbook of Agile Software Craftsmanship' },
   { key: 'author',      label: 'Author name(s)',             note: 'Author name(s)',                 sample: 'Martin, Robert C.' },
   { key: 'isbn',        label: 'ISBN',                       note: 'ISBN-10 or ISBN-13',             sample: '978-0132350884' },
-  { key: 'publisher',   label: 'Publisher',                  note: 'Publisher name',                 sample: 'Prentice Hall' },
-  { key: 'year',        label: 'Publication year',           note: 'Publication year (YYYY)',        sample: '2008' },
-  { key: 'subject',     label: 'Subject',                    note: 'e.g. Computer Science, Physics', sample: 'Computer Science, Agile Software' },
-  { key: 'description', label: 'Description or abstract',    note: 'Book description or abstract',   sample: 'Even bad code can function. But if code isn\'t clean...' },
-  { key: 'coverUrl',    label: 'Cover image URL',            note: 'https:// URL to cover image',    sample: 'https://images.example.com/books/clean-code.jpg' },
-  { key: 'category',    label: 'Category or genre',          note: 'Category or genre',              sample: 'Programming' },
-  { key: 'pages',       label: 'Number of pages',            note: 'Number of pages',                sample: '464' },
-  { key: 'url',         label: 'Link to book / e-book',      note: 'Link to book / e-book',          sample: 'https://books.example.com/item/clean-code' },
-  { key: 'price',       label: 'Price in local currency',    note: 'Price in local currency',        sample: '$38.99' },
+  { key: 'publisher',   label: 'Publisher',                  note: 'Publisher name',                 sample: 'Oxford University Press' },
+  { key: 'year',        label: 'Publication year',           note: 'Publication year (YYYY)',        sample: '2022' },
+  { key: 'subject',     label: 'Subject',                    note: 'e.g. Computer Science, Physics', sample: 'Nigeria -- History; Nigeria -- Civilization' },
+  { key: 'description', label: 'Description or abstract',    note: 'Book description or abstract',   sample: 'The Oxford Handbook of Nigerian History provides...' },
+  { key: 'coverUrl',    label: 'Cover image URL',            note: 'https:// URL to cover image',    sample: 'https://images.example.com/books/cover.jpg' },
+  { key: 'category',    label: 'Category or genre',          note: 'Category or genre',              sample: 'History / African Studies' },
+  { key: 'pages',       label: 'Number of pages',            note: 'Number of pages',                sample: '779' },
+  { key: 'url',         label: 'Link to book / e-book',      note: 'Link to book / e-book',          sample: 'http://dx.doi.org/10.1093/oxfordhb/...' },
+  { key: 'price',       label: 'Price in local currency',    note: 'Price in local currency',        sample: '$49.99' },
 ] as const;
 
 export default function BookCatalogConverter() {
@@ -53,8 +54,12 @@ export default function BookCatalogConverter() {
 
   // Mapping state: targetCol -> sourceCol | ''
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  // Custom static defaults: targetCol -> string
+  // Custom static defaults: targetCol -> string (fallback if source is empty)
   const [customDefaults, setCustomDefaults] = useState<Record<string, string>>({});
+  // Custom manual overrides: targetCol -> string (overrides all records)
+  const [customOverrides, setCustomOverrides] = useState<Record<string, string>>({});
+  // Field input mode: 'column' (from source column) or 'manual' (explicit manual value)
+  const [fieldModes, setFieldModes] = useState<Record<string, 'column' | 'manual'>>({});
 
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -74,6 +79,8 @@ export default function BookCatalogConverter() {
       setPreviewError(null);
       setMapping({});
       setCustomDefaults({});
+      setCustomOverrides({});
+      setFieldModes({});
       return;
     }
 
@@ -101,6 +108,8 @@ export default function BookCatalogConverter() {
         }
         setMapping(init);
         setCustomDefaults({});
+        setCustomOverrides({});
+        setFieldModes({});
       })
       .catch((err) => {
         if (!cancelled) {
@@ -116,7 +125,11 @@ export default function BookCatalogConverter() {
     };
   }, [file]);
 
-  const fetchOverridePreview = useCallback((currentMapping: Record<string, string>, currentDefaults: Record<string, string>) => {
+  const fetchOverridePreview = useCallback((
+    currentMapping: Record<string, string>,
+    currentDefaults: Record<string, string>,
+    currentOverrides: Record<string, string>,
+  ) => {
     if (!file) return;
     setIsPreviewLoading(true);
     setPreviewError(null);
@@ -128,6 +141,9 @@ export default function BookCatalogConverter() {
     }
     if (Object.keys(currentDefaults).length > 0) {
       form.append('customDefaults', JSON.stringify(currentDefaults));
+    }
+    if (Object.keys(currentOverrides).length > 0) {
+      form.append('customOverrides', JSON.stringify(currentOverrides));
     }
 
     fetch('/api/book-catalog/preview', { method: 'POST', body: form })
@@ -165,7 +181,7 @@ export default function BookCatalogConverter() {
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      fetchOverridePreview(nextMapping, customDefaults);
+      fetchOverridePreview(nextMapping, customDefaults, customOverrides);
     }, 200);
   };
 
@@ -175,8 +191,31 @@ export default function BookCatalogConverter() {
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      fetchOverridePreview(mapping, nextDefaults);
-    }, 300);
+      fetchOverridePreview(mapping, nextDefaults, customOverrides);
+    }, 250);
+  };
+
+  const handleOverrideChange = (targetKey: string, val: string) => {
+    const nextOverrides = { ...customOverrides, [targetKey]: val };
+    setCustomOverrides(nextOverrides);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchOverridePreview(mapping, customDefaults, nextOverrides);
+    }, 250);
+  };
+
+  const toggleFieldMode = (targetKey: string, mode: 'column' | 'manual') => {
+    setFieldModes((prev) => ({ ...prev, [targetKey]: mode }));
+    // If switching to manual and override has a value, re-fetch
+    if (mode === 'manual' && customOverrides[targetKey]) {
+      fetchOverridePreview(mapping, customDefaults, customOverrides);
+    } else if (mode === 'column') {
+      const nextOverrides = { ...customOverrides };
+      delete nextOverrides[targetKey];
+      setCustomOverrides(nextOverrides);
+      fetchOverridePreview(mapping, customDefaults, nextOverrides);
+    }
   };
 
   const resetToAuto = () => {
@@ -187,7 +226,9 @@ export default function BookCatalogConverter() {
     }
     setMapping(init);
     setCustomDefaults({});
-    fetchOverridePreview(init, {});
+    setCustomOverrides({});
+    setFieldModes({});
+    fetchOverridePreview(init, {}, {});
   };
 
   const handleConvert = async () => {
@@ -202,6 +243,9 @@ export default function BookCatalogConverter() {
       }
       if (Object.keys(customDefaults).length > 0) {
         form.append('customDefaults', JSON.stringify(customDefaults));
+      }
+      if (Object.keys(customOverrides).length > 0) {
+        form.append('customOverrides', JSON.stringify(customOverrides));
       }
 
       const res = await fetch('/api/book-catalog/convert', { method: 'POST', body: form });
@@ -241,7 +285,12 @@ export default function BookCatalogConverter() {
   };
 
   const detectedCols = preview?.detectedColumns || [];
-  const mappedCount = TARGET_COLUMNS.filter((c) => mapping[c.key] || customDefaults[c.key]).length;
+  const mappedCount = TARGET_COLUMNS.filter((c) => {
+    if (fieldModes[c.key] === 'manual') {
+      return Boolean(customOverrides[c.key]);
+    }
+    return Boolean(mapping[c.key] || customDefaults[c.key]);
+  }).length;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -270,8 +319,6 @@ export default function BookCatalogConverter() {
               const f = e.target.files?.[0];
               if (f) {
                 setFile(f);
-                setMapping({});
-                setCustomDefaults({});
                 setState({ status: 'idle', message: '', recordCount: 0 });
               }
               e.target.value = '';
@@ -371,7 +418,7 @@ export default function BookCatalogConverter() {
             <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                 <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                ISBN Cleaned
+                ISBN Standardized
               </span>
               <span className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                 UTF-8 BOM
@@ -383,7 +430,7 @@ export default function BookCatalogConverter() {
           {isPreviewLoading && (
             <div className="p-12 flex flex-col items-center justify-center gap-2 text-slate-500">
               <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
-              <p className="text-xs font-medium">Auto-mapping & preparing live preview…</p>
+              <p className="text-xs font-medium">Extracting records & compiling live preview…</p>
             </div>
           )}
 
@@ -399,7 +446,7 @@ export default function BookCatalogConverter() {
           {!isPreviewLoading && !previewError && activeTab === 'preview' && (
             <>
               {preview && preview.rows.length > 0 ? (
-                <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-[490px] overflow-y-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800/95 border-b border-slate-200 dark:border-slate-700">
                       <tr>
@@ -516,7 +563,7 @@ export default function BookCatalogConverter() {
         </div>
       </div>
 
-      {/* ── RIGHT WORKSTATION COLUMN: COLUMN MAPPING STUDIO & ACTIONS (4 Cols) ── */}
+      {/* ── RIGHT WORKSTATION COLUMN: COLUMN MAPPING & MANUAL EDIT STUDIO (4 Cols) ── */}
       <div className="lg:col-span-4 flex flex-col gap-4">
 
         {/* Column Mapping Studio Card */}
@@ -525,12 +572,12 @@ export default function BookCatalogConverter() {
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-blue-700 dark:text-blue-400" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Column Mapping Studio
+                Field Mapping &amp; Manual Edit
               </h2>
             </div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                {mappedCount} / 12 Mapped
+                {mappedCount} / 12 Configured
               </span>
               {file && (
                 <button
@@ -545,15 +592,17 @@ export default function BookCatalogConverter() {
             </div>
           </div>
 
-          <div className="p-3.5 flex flex-col gap-3 max-h-[500px] overflow-y-auto">
+          <div className="p-3.5 flex flex-col gap-3 max-h-[520px] overflow-y-auto">
             {TARGET_COLUMNS.map(({ key, label }) => {
               const currentSrc = mapping[key] || '';
               const isAutoMatched = preview?.effectiveMapping[key] === currentSrc && currentSrc !== '';
               const currentDefault = customDefaults[key] || '';
+              const currentOverride = customOverrides[key] || '';
+              const mode = fieldModes[key] || (currentOverride ? 'manual' : 'column');
 
               return (
-                <div key={key} className="p-2 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <div className="flex items-center justify-between mb-1.5">
+                <div key={key} className="p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="font-mono text-xs font-semibold text-blue-900 dark:text-blue-300">
                         {key}
@@ -562,38 +611,102 @@ export default function BookCatalogConverter() {
                         ({label})
                       </span>
                     </div>
-                    {isAutoMatched && (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
-                        <Sparkles className="h-2.5 w-2.5" />
-                        auto
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-1">
+                      {isAutoMatched && mode === 'column' && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          auto
+                        </span>
+                      )}
+
+                      {/* Mode Toggle: Column vs Manual Value */}
+                      <div className="flex rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldMode(key, 'column')}
+                          className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                            mode === 'column'
+                              ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 font-semibold shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          Col
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleFieldMode(key, 'manual')}
+                          className={`px-1.5 py-0.5 rounded cursor-pointer transition-all flex items-center gap-0.5 ${
+                            mode === 'manual'
+                              ? 'bg-amber-600 text-white font-semibold shadow-2xs'
+                              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <Edit3 className="h-2.5 w-2.5" />
+                          Manual
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={currentSrc}
-                      onChange={(e) => handleMappingChange(key, e.target.value)}
-                      disabled={detectedCols.length === 0}
-                      className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 truncate"
-                    >
-                      <option value="">(None / Blank)</option>
-                      {detectedCols.map((col) => (
-                        <option key={col} value={col}>
-                          {preview?.columnLabels?.[col] || col}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Mode 1: From File Column */}
+                  {mode === 'column' ? (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={currentSrc}
+                        onChange={(e) => handleMappingChange(key, e.target.value)}
+                        disabled={detectedCols.length === 0}
+                        className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 truncate"
+                      >
+                        <option value="">(None / Blank)</option>
+                        {detectedCols.map((col) => (
+                          <option key={col} value={col}>
+                            {preview?.columnLabels?.[col] || col}
+                          </option>
+                        ))}
+                      </select>
 
-                    <input
-                      type="text"
-                      placeholder="Static fallback"
-                      value={currentDefault}
-                      onChange={(e) => handleDefaultChange(key, e.target.value)}
-                      title={`Optional fallback value if source ${key} is empty`}
-                      className="w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate"
-                    />
-                  </div>
+                      <input
+                        type="text"
+                        placeholder="Fallback if empty"
+                        value={currentDefault}
+                        onChange={(e) => handleDefaultChange(key, e.target.value)}
+                        title={`Optional fallback value if source ${key} is empty`}
+                        className="w-24 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate"
+                      />
+                    </div>
+                  ) : (
+                    /* Mode 2: Manual Fixed Override */
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder={`Manual ${label} for all records (e.g. ${
+                          key === 'publisher'
+                            ? 'Oxford University Press'
+                            : key === 'price'
+                            ? '$49.99'
+                            : key === 'category'
+                            ? 'History'
+                            : key === 'coverUrl'
+                            ? 'https://example.com/cover.jpg'
+                            : 'custom value'
+                        })`}
+                        value={currentOverride}
+                        onChange={(e) => handleOverrideChange(key, e.target.value)}
+                        className="flex-1 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/20 px-2.5 py-1 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                      />
+                      {currentOverride && (
+                        <button
+                          type="button"
+                          onClick={() => handleOverrideChange(key, '')}
+                          className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-1 cursor-pointer"
+                          title="Clear manual value"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
