@@ -107,9 +107,6 @@ router.post('/convert', upload.single('file'), async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${baseName}_standard_books.csv"`);
     res.setHeader('X-Record-Count', String(recordCount));
-    res.setHeader('X-Detected-Columns', encodeURIComponent(JSON.stringify(detectedColumns)));
-    res.setHeader('X-Effective-Mapping', encodeURIComponent(JSON.stringify(effectiveMapping)));
-    res.setHeader('X-Target-Columns', encodeURIComponent(JSON.stringify(targetColumns || [])));
     res.send(Buffer.from('\uFEFF' + csv, 'utf-8'));
   } catch (err) {
     console.error(err);

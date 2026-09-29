@@ -124,10 +124,12 @@ export default function BookCatalogConverter() {
     const form = new FormData();
     form.append('file', file);
     form.append('splitSubjects', String(splitSubjects));
-
     fetch('/api/book-catalog/preview', { method: 'POST', body: form })
       .then(async (res) => {
         if (!res.ok) {
+          if (res.status === 502) {
+            throw new Error('Backend server is temporarily unreachable or restarting (502 Bad Gateway). Please make sure the backend is running on port 4000 and try again.');
+          }
           const err = await res.json().catch(() => null);
           throw new Error(err?.error || `Preview failed (${res.status})`);
         }
@@ -188,6 +190,9 @@ export default function BookCatalogConverter() {
     fetch('/api/book-catalog/preview', { method: 'POST', body: form })
       .then(async (res) => {
         if (!res.ok) {
+          if (res.status === 502) {
+            throw new Error('Backend server is temporarily unreachable or restarting (502 Bad Gateway). Please make sure the backend is running on port 4000 and try again.');
+          }
           const err = await res.json().catch(() => null);
           throw new Error(err?.error || `Preview failed (${res.status})`);
         }
@@ -298,6 +303,9 @@ export default function BookCatalogConverter() {
       const res = await fetch('/api/book-catalog/convert', { method: 'POST', body: form });
 
       if (!res.ok) {
+        if (res.status === 502) {
+          throw new Error('Backend server is temporarily unreachable or restarting (502 Bad Gateway). Please make sure the backend is running on port 4000 and try again.');
+        }
         const err = await res.json().catch(() => null);
         throw new Error(err?.error || `Conversion failed (${res.status})`);
       }
