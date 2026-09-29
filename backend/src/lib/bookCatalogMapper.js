@@ -482,16 +482,60 @@ export function autoDetectMapping(sourceHeaders = [], targetColumns = BOOK_CATAL
 }
 
 /**
- * Normalizes an ISBN value: removes prefixes, preserves digits and trailing X.
+ * Expands scientific notation (e.g. from Excel imports: 9.780190050108E+12 -> 9780190050108)
+ */
+export function expandScientificNotation(str) {
+  if (!str) return '';
+  const trimmed = String(str).trim();
+  const match = trimmed.match(/^([+-]?\d+)(?:\.(\d+))?[eE]\+?(\d+)$/i);
+  if (!match) return trimmed;
+
+  const [, intPart, fracPart = '', expStr] = match;
+  const exp = parseInt(expStr, 10);
+  if (exp >= 9 && exp <= 15) {
+    const digits = intPart + fracPart;
+    const neededZeros = exp - fracPart.length;
+    if (neededZeros >= 0) {
+      return digits + '0'.repeat(neededZeros);
+    }
+    return digits.slice(0, intPart.length + exp);
+  }
+  return trimmed;
+}
+
+/**
+ * Normalizes an ISBN value: removes prefixes, expands scientific notation, preserves digits and hyphens.
  */
 export function cleanIsbn(val) {
   if (!val) return '';
-  const str = String(val).trim();
-  const stripped = str.replace(/^(isbn(-?1[03])?[:\s]*)/i, '').trim();
-  const matches = stripped.match(/[0-9]{1,5}[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9Xx]/g);
-  if (matches && matches.length > 0) {
-    return matches[0].replace(/\s+/g, '-').trim();
+  let str = String(val).trim();
+
+  // 1. Expand scientific notation if coming from Excel (e.g. 9.780190050108E+12 or 9.78019E+12)
+  if (/[eE]\+?\d+/i.test(str)) {
+    str = expandScientificNotation(str);
   }
+
+  // 2. Strip prefixes like "ISBN:", "ISBN-13:", "ISBN-10:"
+  const stripped = str.replace(/^(?:isbn(?:-?1[03])?[:\s]*)/i, '').trim();
+
+  // 3. Match 13-digit ISBN (starts with 978 or 979, with optional hyphens)
+  const match13 = stripped.match(/\b(97[89][-\s]?(?:\d[-\s]?){9}[\dXx])\b/);
+  if (match13) {
+    return match13[1].replace(/\s+/g, '-').trim();
+  }
+
+  // 4. Match 10-digit ISBN (with optional hyphens)
+  const match10 = stripped.match(/\b(?:\d[-\s]?){9}[\dXx]\b/);
+  if (match10) {
+    return match10[0].replace(/\s+/g, '-').trim();
+  }
+
+  // 5. Fallback to any general ISBN sequence
+  const matchGen = stripped.match(/[0-9]{1,5}[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9]+[-\s]?[0-9Xx]/);
+  if (matchGen) {
+    return matchGen[0].replace(/\s+/g, '-').trim();
+  }
+
   return stripped.replace(/\s+/g, ' ');
 }
 

@@ -259,6 +259,12 @@ describe('Book Catalog Mapper', () => {
     expect(parsed[0].publisher).toBe('Manual Fixed Press');
     expect(parsed[0].price).toBe('£25.00');
   });
+
+  test('cleanIsbn handles Excel scientific notation and never truncates to 78019', () => {
+    expect(cleanIsbn('9.780190050108E+12')).toBe('9780190050108');
+    expect(cleanIsbn('9.78019E+12')).toBe('9780190000000');
+    expect(cleanIsbn('9780190050108 (ebook) :')).toBe('9780190050108');
+  });
 });
 
 

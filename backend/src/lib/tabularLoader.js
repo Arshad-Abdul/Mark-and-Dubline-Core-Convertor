@@ -28,6 +28,16 @@ export async function loadTabularRecords(buffer, filename = '') {
       const firstSheetName = wb.SheetNames[0];
       if (firstSheetName) {
         const sheet = wb.Sheets[firstSheetName];
+        // Prevent scientific notation for large integers (e.g. ISBNs, barcodes, IDs >= 1e9)
+        for (const cellAddress in sheet) {
+          if (cellAddress[0] === '!') continue;
+          const cell = sheet[cellAddress];
+          if (cell && cell.t === 'n' && typeof cell.v === 'number') {
+            if (Number.isInteger(cell.v) && Math.abs(cell.v) >= 1e9) {
+              cell.w = BigInt(cell.v).toString();
+            }
+          }
+        }
         // raw: false converts numbers and dates into formatted strings
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
         if (rows && rows.length > 0) {
