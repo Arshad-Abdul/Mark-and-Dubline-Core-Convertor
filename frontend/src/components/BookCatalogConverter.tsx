@@ -65,13 +65,15 @@ export default function BookCatalogConverter() {
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch preview when file or mapping or defaults change (debounced for inputs)
+  // Fetch initial auto-detected preview when a new file is uploaded
   useEffect(() => {
     if (!file) {
       setPreview(null);
       setPreviewError(null);
       setMapping({});
+      setCustomDefaults({});
       return;
     }
 
@@ -79,53 +81,73 @@ export default function BookCatalogConverter() {
     setIsPreviewLoading(true);
     setPreviewError(null);
 
-    const timer = setTimeout(() => {
-      const form = new FormData();
-      form.append('file', file);
-      if (Object.keys(mapping).length > 0) {
-        form.append('mapping', JSON.stringify(mapping));
-      }
-      if (Object.keys(customDefaults).length > 0) {
-        form.append('customDefaults', JSON.stringify(customDefaults));
-      }
+    const form = new FormData();
+    form.append('file', file);
 
-      fetch('/api/book-catalog/preview', { method: 'POST', body: form })
-        .then(async (res) => {
-          if (!res.ok) {
-            const err = await res.json().catch(() => null);
-            throw new Error(err?.error || `Preview failed (${res.status})`);
-          }
-          return res.json() as Promise<PreviewData>;
-        })
-        .then((data) => {
-          if (cancelled) return;
-          setPreview(data);
-          // If mapping is not yet initialized or changed, sync with auto-detected effectiveMapping
-          setMapping((prev) => {
-            const next = { ...prev };
-            for (const col of TARGET_COLUMNS) {
-              if (next[col.key] === undefined && data.effectiveMapping[col.key]) {
-                next[col.key] = data.effectiveMapping[col.key] || '';
-              }
-            }
-            return next;
-          });
-        })
-        .catch((err) => {
-          if (!cancelled) {
-            setPreviewError(err instanceof Error ? err.message : 'Unable to parse file preview.');
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setIsPreviewLoading(false);
-        });
-    }, 200);
+    fetch('/api/book-catalog/preview', { method: 'POST', body: form })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || `Preview failed (${res.status})`);
+        }
+        return res.json() as Promise<PreviewData>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setPreview(data);
+        const init: Record<string, string> = {};
+        for (const col of TARGET_COLUMNS) {
+          init[col.key] = data.effectiveMapping[col.key] || '';
+        }
+        setMapping(init);
+        setCustomDefaults({});
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setPreviewError(err instanceof Error ? err.message : 'Unable to parse file preview.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsPreviewLoading(false);
+      });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [file, mapping, customDefaults]);
+  }, [file]);
+
+  const fetchOverridePreview = useCallback((currentMapping: Record<string, string>, currentDefaults: Record<string, string>) => {
+    if (!file) return;
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+
+    const form = new FormData();
+    form.append('file', file);
+    if (Object.keys(currentMapping).length > 0) {
+      form.append('mapping', JSON.stringify(currentMapping));
+    }
+    if (Object.keys(currentDefaults).length > 0) {
+      form.append('customDefaults', JSON.stringify(currentDefaults));
+    }
+
+    fetch('/api/book-catalog/preview', { method: 'POST', body: form })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || `Preview failed (${res.status})`);
+        }
+        return res.json() as Promise<PreviewData>;
+      })
+      .then((data) => {
+        setPreview(data);
+      })
+      .catch((err) => {
+        setPreviewError(err instanceof Error ? err.message : 'Unable to update preview.');
+      })
+      .finally(() => {
+        setIsPreviewLoading(false);
+      });
+  }, [file]);
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -133,30 +155,39 @@ export default function BookCatalogConverter() {
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) {
       setFile(dropped);
-      setMapping({});
-      setCustomDefaults({});
       setState({ status: 'idle', message: '', recordCount: 0 });
     }
   }, []);
 
   const handleMappingChange = (targetKey: string, sourceCol: string) => {
-    setMapping((prev) => ({
-      ...prev,
-      [targetKey]: sourceCol,
-    }));
+    const nextMapping = { ...mapping, [targetKey]: sourceCol };
+    setMapping(nextMapping);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchOverridePreview(nextMapping, customDefaults);
+    }, 200);
   };
 
   const handleDefaultChange = (targetKey: string, val: string) => {
-    setCustomDefaults((prev) => ({
-      ...prev,
-      [targetKey]: val,
-    }));
+    const nextDefaults = { ...customDefaults, [targetKey]: val };
+    setCustomDefaults(nextDefaults);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchOverridePreview(mapping, nextDefaults);
+    }, 300);
   };
 
   const resetToAuto = () => {
     if (!preview) return;
-    setMapping(preview.effectiveMapping as Record<string, string>);
+    const init: Record<string, string> = {};
+    for (const col of TARGET_COLUMNS) {
+      init[col.key] = preview.effectiveMapping[col.key] || '';
+    }
+    setMapping(init);
     setCustomDefaults({});
+    fetchOverridePreview(init, {});
   };
 
   const handleConvert = async () => {
