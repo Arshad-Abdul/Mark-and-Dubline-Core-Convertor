@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import {
   UploadCloud,
@@ -28,6 +28,8 @@ interface PreviewData {
   columnLabels?: Record<string, string>;
   effectiveMapping: Record<string, string | null>;
   header: string[];
+  targetColumns?: string[];
+  hasMultipleSubjects?: boolean;
   rows: string[][];
   previewCount: number;
 }
@@ -38,7 +40,7 @@ export const TARGET_COLUMNS = [
   { key: 'isbn',        label: 'ISBN',                       note: 'ISBN-10 or ISBN-13',             sample: '978-0132350884' },
   { key: 'publisher',   label: 'Publisher',                  note: 'Publisher name',                 sample: 'Oxford University Press' },
   { key: 'year',        label: 'Publication year',           note: 'Publication year (YYYY)',        sample: '2022' },
-  { key: 'subject',     label: 'Subject',                    note: 'e.g. Computer Science, Physics', sample: 'Nigeria -- History; Nigeria -- Civilization' },
+  { key: 'subject',     label: 'Subject',                    note: 'Primary subject (one per col)',  sample: 'Nigeria -- History' },
   { key: 'description', label: 'Description or abstract',    note: 'Book description or abstract',   sample: 'The Oxford Handbook of Nigerian History provides...' },
   { key: 'coverUrl',    label: 'Cover image URL',            note: 'https:// URL to cover image',    sample: 'https://images.example.com/books/cover.jpg' },
   { key: 'category',    label: 'Category or genre',          note: 'Category or genre',              sample: 'History / African Studies' },
@@ -51,6 +53,9 @@ export default function BookCatalogConverter() {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<'preview' | 'columns'>('preview');
+
+  // Split multiple subjects into individual columns (subject, subject_2, subject_3...)
+  const [splitSubjects, setSplitSubjects] = useState<boolean>(true);
 
   // Mapping state: targetCol -> sourceCol | ''
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -72,6 +77,34 @@ export default function BookCatalogConverter() {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Dynamically compute active target columns (including separate subject_2, subject_3...)
+  const activeTargetColumns = useMemo(() => {
+    if (!preview?.targetColumns || preview.targetColumns.length === 0) {
+      return TARGET_COLUMNS.map((c) => ({ ...c, isDynamicSubject: false }));
+    }
+    return preview.targetColumns.map((colKey) => {
+      const standard = TARGET_COLUMNS.find((c) => c.key === colKey);
+      if (standard) return { ...standard, isDynamicSubject: false };
+      if (colKey.startsWith('subject_')) {
+        const num = colKey.replace('subject_', '');
+        return {
+          key: colKey,
+          label: `Subject ${num}`,
+          note: `Secondary subject (#${num}) in separate column`,
+          sample: num === '2' ? 'Nigeria -- Civilization' : 'Additional Subject',
+          isDynamicSubject: true,
+        };
+      }
+      return {
+        key: colKey,
+        label: colKey,
+        note: colKey,
+        sample: '',
+        isDynamicSubject: false,
+      };
+    });
+  }, [preview?.targetColumns]);
+
   // Fetch initial auto-detected preview when a new file is uploaded
   useEffect(() => {
     if (!file) {
@@ -90,6 +123,7 @@ export default function BookCatalogConverter() {
 
     const form = new FormData();
     form.append('file', file);
+    form.append('splitSubjects', String(splitSubjects));
 
     fetch('/api/book-catalog/preview', { method: 'POST', body: form })
       .then(async (res) => {
@@ -103,8 +137,11 @@ export default function BookCatalogConverter() {
         if (cancelled) return;
         setPreview(data);
         const init: Record<string, string> = {};
-        for (const col of TARGET_COLUMNS) {
-          init[col.key] = data.effectiveMapping[col.key] || '';
+        const colsToInit = data.targetColumns && data.targetColumns.length > 0
+          ? data.targetColumns
+          : TARGET_COLUMNS.map((c) => c.key);
+        for (const colKey of colsToInit) {
+          init[colKey] = data.effectiveMapping[colKey] || '';
         }
         setMapping(init);
         setCustomDefaults({});
@@ -129,6 +166,7 @@ export default function BookCatalogConverter() {
     currentMapping: Record<string, string>,
     currentDefaults: Record<string, string>,
     currentOverrides: Record<string, string>,
+    currentSplitSubjects: boolean = splitSubjects,
   ) => {
     if (!file) return;
     setIsPreviewLoading(true);
@@ -136,6 +174,7 @@ export default function BookCatalogConverter() {
 
     const form = new FormData();
     form.append('file', file);
+    form.append('splitSubjects', String(currentSplitSubjects));
     if (Object.keys(currentMapping).length > 0) {
       form.append('mapping', JSON.stringify(currentMapping));
     }
@@ -163,7 +202,12 @@ export default function BookCatalogConverter() {
       .finally(() => {
         setIsPreviewLoading(false);
       });
-  }, [file]);
+  }, [file, splitSubjects]);
+
+  const handleToggleSplitSubjects = (val: boolean) => {
+    setSplitSubjects(val);
+    fetchOverridePreview(mapping, customDefaults, customOverrides, val);
+  };
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -207,7 +251,6 @@ export default function BookCatalogConverter() {
 
   const toggleFieldMode = (targetKey: string, mode: 'column' | 'manual') => {
     setFieldModes((prev) => ({ ...prev, [targetKey]: mode }));
-    // If switching to manual and override has a value, re-fetch
     if (mode === 'manual' && customOverrides[targetKey]) {
       fetchOverridePreview(mapping, customDefaults, customOverrides);
     } else if (mode === 'column') {
@@ -221,14 +264,17 @@ export default function BookCatalogConverter() {
   const resetToAuto = () => {
     if (!preview) return;
     const init: Record<string, string> = {};
-    for (const col of TARGET_COLUMNS) {
-      init[col.key] = preview.effectiveMapping[col.key] || '';
+    const colsToInit = preview.targetColumns && preview.targetColumns.length > 0
+      ? preview.targetColumns
+      : TARGET_COLUMNS.map((c) => c.key);
+    for (const colKey of colsToInit) {
+      init[colKey] = preview.effectiveMapping[colKey] || '';
     }
     setMapping(init);
     setCustomDefaults({});
     setCustomOverrides({});
     setFieldModes({});
-    fetchOverridePreview(init, {}, {});
+    fetchOverridePreview(init, {}, {}, splitSubjects);
   };
 
   const handleConvert = async () => {
@@ -238,6 +284,7 @@ export default function BookCatalogConverter() {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('splitSubjects', String(splitSubjects));
       if (Object.keys(mapping).length > 0) {
         form.append('mapping', JSON.stringify(mapping));
       }
@@ -285,7 +332,7 @@ export default function BookCatalogConverter() {
   };
 
   const detectedCols = preview?.detectedColumns || [];
-  const mappedCount = TARGET_COLUMNS.filter((c) => {
+  const mappedCount = activeTargetColumns.filter((c) => {
     if (fieldModes[c.key] === 'manual') {
       return Boolean(customOverrides[c.key]);
     }
@@ -416,6 +463,17 @@ export default function BookCatalogConverter() {
             </div>
 
             <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+              {file && (
+                <label className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 font-medium cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={splitSubjects}
+                    onChange={(e) => handleToggleSplitSubjects(e.target.checked)}
+                    className="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3 w-3"
+                  />
+                  <span>1 Subject / Col</span>
+                </label>
+              )}
               <span className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                 <ShieldCheck className="h-3 w-3 text-emerald-600" />
                 ISBN Standardized
@@ -577,7 +635,7 @@ export default function BookCatalogConverter() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                {mappedCount} / 12 Configured
+                {mappedCount} / {activeTargetColumns.length} Configured
               </span>
               {file && (
                 <button
@@ -592,8 +650,26 @@ export default function BookCatalogConverter() {
             </div>
           </div>
 
+          {preview?.hasMultipleSubjects && (
+            <div className="px-3.5 py-2 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-200/60 dark:border-blue-800 flex items-center justify-between gap-2 text-xs">
+              <span className="text-blue-900 dark:text-blue-200 font-medium flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                Separate Subject Columns
+              </span>
+              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-semibold text-blue-800 dark:text-blue-300">
+                <input
+                  type="checkbox"
+                  checked={splitSubjects}
+                  onChange={(e) => handleToggleSplitSubjects(e.target.checked)}
+                  className="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                />
+                <span>{splitSubjects ? '1 subject per column' : 'Combined in 1 column'}</span>
+              </label>
+            </div>
+          )}
+
           <div className="p-3.5 flex flex-col gap-3 max-h-[520px] overflow-y-auto">
-            {TARGET_COLUMNS.map(({ key, label }) => {
+            {activeTargetColumns.map(({ key, label, isDynamicSubject }) => {
               const currentSrc = mapping[key] || '';
               const isAutoMatched = preview?.effectiveMapping[key] === currentSrc && currentSrc !== '';
               const currentDefault = customDefaults[key] || '';
@@ -610,6 +686,11 @@ export default function BookCatalogConverter() {
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
                         ({label})
                       </span>
+                      {isDynamicSubject && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-mono">
+                          distinct col
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1">

@@ -34,13 +34,23 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     const mapping = parseJsonField(req.body.mapping);
     const customDefaults = parseJsonField(req.body.customDefaults);
     const customOverrides = parseJsonField(req.body.customOverrides);
+    const splitSubjects = req.body.splitSubjects !== 'false' && req.body.splitSubjects !== false;
 
     const fileBuffer = await fs.readFile(req.file.path);
-    const { csv, recordCount, detectedColumns, columnLabels, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
+    const {
+      csv,
+      recordCount,
+      detectedColumns,
+      columnLabels,
+      effectiveMapping,
+      targetColumns,
+      hasMultipleSubjects,
+    } = await convertToBookCatalogCsv(fileBuffer, {
       filename: req.file.originalname,
       mapping,
       customDefaults,
       customOverrides,
+      splitSubjects,
     });
 
     const cleanCsv = csv.replace(/^\uFEFF/, '');
@@ -52,7 +62,9 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       detectedColumns,
       columnLabels,
       effectiveMapping,
-      header: header || BOOK_CATALOG_COLUMNS,
+      targetColumns: targetColumns || header || BOOK_CATALOG_COLUMNS,
+      hasMultipleSubjects,
+      header: header || targetColumns || BOOK_CATALOG_COLUMNS,
       rows: rows.slice(0, 10),
       previewCount: Math.min(10, rows.length),
     });
@@ -80,13 +92,15 @@ router.post('/convert', upload.single('file'), async (req, res) => {
     const mapping = parseJsonField(req.body.mapping);
     const customDefaults = parseJsonField(req.body.customDefaults);
     const customOverrides = parseJsonField(req.body.customOverrides);
+    const splitSubjects = req.body.splitSubjects !== 'false' && req.body.splitSubjects !== false;
 
     const fileBuffer = await fs.readFile(req.file.path);
-    const { csv, recordCount, detectedColumns, effectiveMapping } = await convertToBookCatalogCsv(fileBuffer, {
+    const { csv, recordCount, detectedColumns, effectiveMapping, targetColumns } = await convertToBookCatalogCsv(fileBuffer, {
       filename: req.file.originalname,
       mapping,
       customDefaults,
       customOverrides,
+      splitSubjects,
     });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 
@@ -95,6 +109,7 @@ router.post('/convert', upload.single('file'), async (req, res) => {
     res.setHeader('X-Record-Count', String(recordCount));
     res.setHeader('X-Detected-Columns', encodeURIComponent(JSON.stringify(detectedColumns)));
     res.setHeader('X-Effective-Mapping', encodeURIComponent(JSON.stringify(effectiveMapping)));
+    res.setHeader('X-Target-Columns', encodeURIComponent(JSON.stringify(targetColumns || [])));
     res.send(Buffer.from('\uFEFF' + csv, 'utf-8'));
   } catch (err) {
     console.error(err);

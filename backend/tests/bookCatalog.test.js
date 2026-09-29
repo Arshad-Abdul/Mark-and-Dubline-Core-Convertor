@@ -191,6 +191,75 @@ describe('Book Catalog Mapper', () => {
     expect(row.pages).toBe('352');
     expect(row.subject).toBe('Computer programming');
   });
+
+  test('splits multiple subjects into separate columns (subject, subject_2...) for MARC records', async () => {
+    const mrkText = `=LDR  04706nam  2200409 i 4500
+=001  EDZ0002719268
+=020  \\\\$a9780190050108 (ebook) :$cNo price
+=245  04$aThe Oxford handbook of Nigerian history /$cedited by Toyin Falola and Matthew M. Heaton.
+=264  \\1$aNew York :$bOxford University Press,$c2022.
+=300  \\\\$a1 online resource (xii, 779 pages).
+=520  8\\$a'The Oxford Handbook of Nigerian History' provides a comprehensive history...
+=651  \\0$aNigeria$xHistory.
+=651  \\0$aNigeria$xCivilization.
+=700  1\\$aFalola, Toyin,$eeditor.
+=700  1\\$aHeaton, Matthew M.,$eeditor.
+=856  40$uhttp://dx.doi.org/10.1093/oxfordhb/9780190050092.001.0001`;
+
+    const result = await convertToBookCatalogCsv(Buffer.from(mrkText, 'utf-8'), {
+      filename: 'nigeria.mrk',
+      splitSubjects: true,
+    });
+
+    expect(result.recordCount).toBe(1);
+    expect(result.hasMultipleSubjects).toBe(true);
+    expect(result.targetColumns).toContain('subject');
+    expect(result.targetColumns).toContain('subject_2');
+
+    const parsed = parseCsv(result.csv, { columns: true });
+    expect(parsed[0].title).toBe('The Oxford handbook of Nigerian history');
+    expect(parsed[0].author).toBe('Falola, Toyin; Heaton, Matthew M.');
+    expect(parsed[0].publisher).toBe('Oxford University Press');
+    expect(parsed[0].year).toBe('2022');
+    expect(parsed[0].subject).toBe('Nigeria -- History');
+    expect(parsed[0].subject_2).toBe('Nigeria -- Civilization');
+    expect(parsed[0].pages).toBe('779');
+  });
+
+  test('splits semicolon-separated subjects in CSV when splitSubjects is enabled', async () => {
+    const csvInput = `title,author,subject\n"Quantum Physics","Feynman, Richard","Physics; Quantum Mechanics; Particle Physics"`;
+
+    const result = await convertToBookCatalogCsv(Buffer.from(csvInput, 'utf-8'), {
+      filename: 'physics.csv',
+      splitSubjects: true,
+    });
+
+    expect(result.targetColumns).toContain('subject');
+    expect(result.targetColumns).toContain('subject_2');
+    expect(result.targetColumns).toContain('subject_3');
+
+    const parsed = parseCsv(result.csv, { columns: true });
+    expect(parsed[0].subject).toBe('Physics');
+    expect(parsed[0].subject_2).toBe('Quantum Mechanics');
+    expect(parsed[0].subject_3).toBe('Particle Physics');
+  });
+
+  test('applies customOverrides (manual edit) over extracted data', async () => {
+    const csvInput = `title,publisher,price\n"Sample Book","Auto Publisher","$10.00"`;
+
+    const result = await convertToBookCatalogCsv(Buffer.from(csvInput, 'utf-8'), {
+      filename: 'sample.csv',
+      customOverrides: {
+        publisher: 'Manual Fixed Press',
+        price: '£25.00',
+      },
+    });
+
+    const parsed = parseCsv(result.csv, { columns: true });
+    expect(parsed[0].publisher).toBe('Manual Fixed Press');
+    expect(parsed[0].price).toBe('£25.00');
+  });
 });
+
 
 

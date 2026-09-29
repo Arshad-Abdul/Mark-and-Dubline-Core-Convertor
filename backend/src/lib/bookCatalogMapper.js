@@ -27,7 +27,11 @@ export const COLUMN_DEFINITIONS = {
   isbn:        { label: 'ISBN',                     description: 'ISBN-10 or ISBN-13',             required: false },
   publisher:   { label: 'Publisher',                description: 'Publisher name',                 required: false },
   year:        { label: 'Publication Year',         description: 'Publication year (YYYY)',        required: false },
-  subject:     { label: 'Subject',                  description: 'e.g. Computer Science, Physics', required: false },
+  subject:     { label: 'Subject 1 (Primary)',      description: 'e.g. Computer Science, Physics', required: false },
+  subject_2:   { label: 'Subject 2',                description: 'Secondary subject',              required: false },
+  subject_3:   { label: 'Subject 3',                description: 'Tertiary subject',               required: false },
+  subject_4:   { label: 'Subject 4',                description: 'Additional subject',              required: false },
+  subject_5:   { label: 'Subject 5',                description: 'Additional subject',              required: false },
   description: { label: 'Description / Abstract',   description: 'Book description or abstract',   required: false },
   coverUrl:    { label: 'Cover Image URL',          description: 'https:// URL to cover image',    required: false },
   category:    { label: 'Category / Genre',         description: 'Category or genre',              required: false },
@@ -65,9 +69,21 @@ const FIELD_ALIASES = {
     'py', 'copyright year', 'release year', 'pubdate', 'year published', '008_year',
   ],
   subject: [
-    'MARC_SUBJECTS', '650$a', '651$a', '653$a', '600$a', '610$a', 'subject', 'subjects',
-    'subject(s)', 'topic', 'topics', 'keywords', 'keyword', 'tags', 'tag',
-    'author keywords', 'mesh terms', 'index terms', 'discipline', 'subject headings',
+    'MARC_SUBJECT_1', 'subject_1', 'subject 1', '650$a', '651$a', '653$a', '600$a', '610$a',
+    'subject', 'subjects', 'topic', 'topics', 'keywords', 'keyword', 'tags', 'tag',
+    'disciplines', 'discipline', 'subject heading', 'subject headings', 'mesh', 'fast', 'MARC_SUBJECTS',
+  ],
+  subject_2: [
+    'MARC_SUBJECT_2', 'subject_2', 'subject 2', 'topic_2', 'keyword_2',
+  ],
+  subject_3: [
+    'MARC_SUBJECT_3', 'subject_3', 'subject 3', 'topic_3', 'keyword_3',
+  ],
+  subject_4: [
+    'MARC_SUBJECT_4', 'subject_4', 'subject 4', 'topic_4', 'keyword_4',
+  ],
+  subject_5: [
+    'MARC_SUBJECT_5', 'subject_5', 'subject 5', 'topic_5', 'keyword_5',
   ],
   description: [
     'MARC_DESCRIPTION', '520$a', '520', 'description', 'book description', 'abstract',
@@ -125,7 +141,7 @@ function cleanAuthorName(str) {
  * Loads catalog records from any file: MARC (.mrc, .mrk, .xml), CSV, TSV, TXT, Excel (.xlsx, .xls)
  * @param {Buffer} buffer
  * @param {string} [filename='']
- * @returns {Promise<{ records: Array<Record<string, string>>, detectedColumns: string[], columnLabels: Record<string, string> }>}
+ * @returns {Promise<{ records: Array<Record<string, string>>, detectedColumns: string[], columnLabels: Record<string, string>, hasMultipleSubjects: boolean }>}
  */
 export async function loadCatalogRecords(buffer, filename = '') {
   const ext = (filename.split('.').pop() || '').toLowerCase();
@@ -174,6 +190,8 @@ export async function loadCatalogRecords(buffer, filename = '') {
     }
   }
 
+  let hasMultipleSubjects = false;
+
   // If MARC records detected:
   if (marcRecords && marcRecords.length > 0) {
     const grid = recordsToGrid(marcRecords, { includeLabels: false });
@@ -185,32 +203,9 @@ export async function loadCatalogRecords(buffer, filename = '') {
       columnLabels[key] = subLabel ? `${key} · ${subLabel}` : key;
     }
 
-    // Synthesized smart fields for high-quality book catalog extraction
-    const synthesizedCols = [
-      '245$a+$b',
-      'MARC_AUTHORS',
-      'MARC_ISBN',
-      'MARC_PUBLISHER',
-      'MARC_YEAR',
-      'MARC_SUBJECTS',
-      'MARC_DESCRIPTION',
-      'MARC_CATEGORY',
-      'MARC_PAGES',
-      'MARC_PRICE',
-    ];
+    let maxSubjectsInAnyRecord = 1;
 
-    columnLabels['245$a+$b'] = '245$a+$b · Title (Title + Subtitle)';
-    columnLabels['MARC_AUTHORS'] = 'MARC_AUTHORS · All Authors (100 + 700 + 245$c)';
-    columnLabels['MARC_ISBN'] = 'MARC_ISBN · ISBN (020$a / 776$z)';
-    columnLabels['MARC_PUBLISHER'] = 'MARC_PUBLISHER · Publisher (264$b / 260$b)';
-    columnLabels['MARC_YEAR'] = 'MARC_YEAR · Publication Year (264$c / 260$c / 008)';
-    columnLabels['MARC_SUBJECTS'] = 'MARC_SUBJECTS · Subjects (650 + 651 + 653)';
-    columnLabels['MARC_DESCRIPTION'] = 'MARC_DESCRIPTION · Summary / Abstract (520$a / 505 / 500)';
-    columnLabels['MARC_CATEGORY'] = 'MARC_CATEGORY · Category / Series (490 / 082 / 050)';
-    columnLabels['MARC_PAGES'] = 'MARC_PAGES · Extent / Page Count (300$a)';
-    columnLabels['MARC_PRICE'] = 'MARC_PRICE · Price (020$c / 365$b)';
-
-    const rows = grid.rows.map((row) => {
+    const rows = grid.rows.map((row, recordIdx) => {
       const obj = {};
       grid.header.forEach((key, i) => {
         obj[key] = row[i] || '';
@@ -233,7 +228,6 @@ export async function loadCatalogRecords(buffer, filename = '') {
         authorsList.push(...obj['110$a'].split(' | ').map(cleanAuthorName));
       }
       if (authorsList.length === 0 && obj['245$c']) {
-        // e.g. "edited by Toyin Falola and Matthew M. Heaton."
         const rawC = obj['245$c'].replace(/^(?:edited by|by|written by|compiled by)\s+/i, '').replace(/\.$/, '').trim();
         if (rawC) authorsList.push(rawC);
       }
@@ -254,44 +248,64 @@ export async function loadCatalogRecords(buffer, filename = '') {
       }
       obj['MARC_YEAR'] = yr;
 
-      // 6. Subjects (650 topical, 651 geographic, 653 uncontrolled)
-      const subjects = [];
-      const s650 = obj['650$a'] ? obj['650$a'].split(' | ') : [];
-      const s650x = obj['650$x'] ? obj['650$x'].split(' | ') : [];
-      const s651 = obj['651$a'] ? obj['651$a'].split(' | ') : [];
-      const s651x = obj['651$x'] ? obj['651$x'].split(' | ') : [];
-      const s653 = obj['653$a'] ? obj['653$a'].split(' | ') : [];
+      // 6. Subjects (600-699: 600, 610, 611, 630, 650, 651, 653, 654, 655, etc.) - EACH SUBJECT IN ITS OWN FIELD
+      const subjectFields = (marcRecords[recordIdx]?.fields || []).filter(
+        (f) => f.tag && /^6\d\d$/.test(f.tag)
+      );
 
-      // Combine main subject with subdivisions if aligned
-      for (let i = 0; i < Math.max(s650.length, s650x.length); i++) {
-        const a = (s650[i] || '').replace(/\.$/, '').trim();
-        const x = (s650x[i] || '').replace(/\.$/, '').trim();
-        if (a && x) subjects.push(`${a} -- ${x}`);
-        else if (a) subjects.push(a);
-        else if (x) subjects.push(x);
+      const subjects = [];
+      for (const f of subjectFields) {
+        const subfields = f.subfields || [];
+        const mainCodes = new Set(['a', 'b', 'c', 'd', 'q']);
+        const subdivCodes = new Set(['v', 'x', 'y', 'z']);
+
+        const mainParts = subfields
+          .filter((s) => mainCodes.has(s.code))
+          .map((s) => s.value.replace(/[,/;\.]\s*$/, '').trim())
+          .filter(Boolean);
+        const subdivParts = subfields
+          .filter((s) => subdivCodes.has(s.code))
+          .map((s) => s.value.replace(/[,/;\.]\s*$/, '').trim())
+          .filter(Boolean);
+
+        const mainStr = mainParts.join(' ');
+        const allParts = [mainStr, ...subdivParts].filter(Boolean);
+        if (allParts.length > 0) {
+          subjects.push(allParts.join(' -- ').replace(/\s*--\s*$/, '').replace(/\.$/, '').trim());
+        }
       }
-      for (let i = 0; i < Math.max(s651.length, s651x.length); i++) {
-        const a = (s651[i] || '').replace(/\.$/, '').trim();
-        const x = (s651x[i] || '').replace(/\.$/, '').trim();
-        if (a && x) subjects.push(`${a} -- ${x}`);
-        else if (a) subjects.push(a);
-        else if (x) subjects.push(x);
+
+      // Fallback if no 6xx fields found in raw fields: check grid values
+      if (subjects.length === 0) {
+        const fallbackSubjs = [
+          ...(obj['650$a'] ? obj['650$a'].split(' | ') : []),
+          ...(obj['651$a'] ? obj['651$a'].split(' | ') : []),
+          ...(obj['653$a'] ? obj['653$a'].split(' | ') : []),
+        ].map((s) => s.replace(/\.$/, '').trim()).filter(Boolean);
+        subjects.push(...fallbackSubjs);
       }
-      for (const s of s653) {
-        if (s) subjects.push(s.replace(/\.$/, '').trim());
+
+      const uniqueSubjects = [...new Set(subjects.filter(Boolean))];
+      if (uniqueSubjects.length > 1) hasMultipleSubjects = true;
+      if (uniqueSubjects.length > maxSubjectsInAnyRecord) {
+        maxSubjectsInAnyRecord = uniqueSubjects.length;
       }
-      obj['MARC_SUBJECTS'] = [...new Set(subjects.filter(Boolean))].join('; ');
+
+      obj['MARC_SUBJECTS'] = uniqueSubjects.join('; ');
+      for (let i = 0; i < Math.max(5, uniqueSubjects.length); i++) {
+        obj[`MARC_SUBJECT_${i + 1}`] = uniqueSubjects[i] || '';
+      }
 
       // 7. Description (520 Abstract preferred, fallback to 505 or 500)
       obj['MARC_DESCRIPTION'] = obj['520$a'] || obj['505$t'] || obj['505$a'] || obj['500$a'] || '';
 
-      // 8. Category (490 series, 830, 082 Dewey, 050 LCC)
+      // 8. Category (490 series, 830, 655 genre, 082 Dewey, 050 LCC)
       obj['MARC_CATEGORY'] = obj['490$a'] || obj['830$a'] || obj['655$a'] || obj['082$a'] || obj['050$a'] || '';
 
       // 9. Pages
       obj['MARC_PAGES'] = obj['300$a'] || '';
 
-      // 10. Price (Strip "No price", "Unpriced", "Free" so clean fallback can apply)
+      // 10. Price (Sanitize literal "No price" so manual price or fallback applies)
       let priceVal = obj['020$c'] || obj['365$b'] || '';
       if (/^(?:no price|unpriced|free|n\/?a)$/i.test(priceVal.trim())) {
         priceVal = '';
@@ -301,8 +315,43 @@ export async function loadCatalogRecords(buffer, filename = '') {
       return obj;
     });
 
+    const synthesizedCols = [
+      '245$a+$b',
+      'MARC_AUTHORS',
+      'MARC_ISBN',
+      'MARC_PUBLISHER',
+      'MARC_YEAR',
+    ];
+    for (let i = 1; i <= Math.max(2, maxSubjectsInAnyRecord); i++) {
+      synthesizedCols.push(`MARC_SUBJECT_${i}`);
+    }
+    synthesizedCols.push(
+      'MARC_SUBJECTS',
+      'MARC_DESCRIPTION',
+      'MARC_CATEGORY',
+      'MARC_PAGES',
+      'MARC_PRICE',
+    );
+
+    columnLabels['245$a+$b'] = '245$a+$b · Title (Title + Subtitle)';
+    columnLabels['MARC_AUTHORS'] = 'MARC_AUTHORS · All Authors (100 + 700 + 245$c)';
+    columnLabels['MARC_ISBN'] = 'MARC_ISBN · ISBN (020$a / 776$z)';
+    columnLabels['MARC_PUBLISHER'] = 'MARC_PUBLISHER · Publisher (264$b / 260$b)';
+    columnLabels['MARC_YEAR'] = 'MARC_YEAR · Publication Year (264$c / 260$c / 008)';
+    columnLabels['MARC_SUBJECT_1'] = 'MARC_SUBJECT_1 · Primary Subject (Subject 1)';
+    columnLabels['MARC_SUBJECT_2'] = 'MARC_SUBJECT_2 · Secondary Subject (Subject 2)';
+    columnLabels['MARC_SUBJECT_3'] = 'MARC_SUBJECT_3 · Tertiary Subject (Subject 3)';
+    for (let i = 4; i <= Math.max(2, maxSubjectsInAnyRecord); i++) {
+      columnLabels[`MARC_SUBJECT_${i}`] = `MARC_SUBJECT_${i} · Subject ${i}`;
+    }
+    columnLabels['MARC_SUBJECTS'] = 'MARC_SUBJECTS · All Subjects Combined (semicolon)';
+    columnLabels['MARC_DESCRIPTION'] = 'MARC_DESCRIPTION · Summary / Abstract (520$a / 505 / 500)';
+    columnLabels['MARC_CATEGORY'] = 'MARC_CATEGORY · Category / Series (490 / 082 / 050)';
+    columnLabels['MARC_PAGES'] = 'MARC_PAGES · Extent / Page Count (300$a)';
+    columnLabels['MARC_PRICE'] = 'MARC_PRICE · Price (020$c / 365$b)';
+
     const allHeaders = [...synthesizedCols, ...grid.header];
-    return { records: rows, detectedColumns: allHeaders, columnLabels };
+    return { records: rows, detectedColumns: allHeaders, columnLabels, hasMultipleSubjects };
   }
 
   // 4. Tabular loader (CSV, TSV, TXT, Excel .xlsx, .xls)
@@ -312,26 +361,56 @@ export async function loadCatalogRecords(buffer, filename = '') {
   for (const c of detectedColumns) {
     columnLabels[c] = c;
   }
-  return { records: rows, detectedColumns, columnLabels };
+
+  // Check if CSV has a subject column with multiple values separated by semicolon
+  const subjectKey = detectedColumns.find((c) => /^(subject|subjects|keywords|topic)$/i.test(c));
+  if (subjectKey) {
+    for (const r of rows) {
+      const val = r[subjectKey];
+      if (val && (val.includes(';') || val.includes('|'))) {
+        hasMultipleSubjects = true;
+        const parts = val.split(/[;|]/).map((s) => s.trim()).filter(Boolean);
+        r['subject_1'] = parts[0] || '';
+        r['subject_2'] = parts[1] || '';
+        r['subject_3'] = parts[2] || '';
+        r['subject_4'] = parts[3] || '';
+        r['subject_5'] = parts[4] || '';
+      }
+    }
+    if (hasMultipleSubjects) {
+      for (let i = 1; i <= 5; i++) {
+        detectedColumns.unshift(`subject_${i}`);
+        columnLabels[`subject_${i}`] = `Subject ${i}`;
+      }
+    }
+  }
+
+  return { records: rows, detectedColumns, columnLabels, hasMultipleSubjects };
 }
 
 /**
- * Automatically detects the best source column match for each of the 12 target columns.
+ * Automatically detects the best source column match for each of the target columns.
  * Prioritizes aliases in their defined order.
  *
  * @param {string[]} sourceHeaders
+ * @param {string[]} [targetColumns=BOOK_CATALOG_COLUMNS]
  * @returns {Record<string, string | null>}
  */
-export function autoDetectMapping(sourceHeaders = []) {
+export function autoDetectMapping(sourceHeaders = [], targetColumns = BOOK_CATALOG_COLUMNS, options = {}) {
   const mapping = {};
   const usedHeaders = new Set();
 
-  for (const targetCol of BOOK_CATALOG_COLUMNS) {
+  for (const targetCol of targetColumns) {
     mapping[targetCol] = null;
   }
 
-  // 1. Exact matches first
-  for (const targetCol of BOOK_CATALOG_COLUMNS) {
+  // 1. Exact matches first (except 'subject' if 'subject_1' or 'MARC_SUBJECT_1' exists and splitting enabled)
+  for (const targetCol of targetColumns) {
+    if (targetCol === 'subject' && options.splitSubjects !== false) {
+      if (sourceHeaders.includes('MARC_SUBJECT_1') || sourceHeaders.includes('subject_1')) {
+        continue; // let alias matching assign MARC_SUBJECT_1 or subject_1 to subject
+      }
+    }
     const exact = sourceHeaders.find(
       (h) => !usedHeaders.has(h) && normalizeHeader(h) === normalizeHeader(targetCol)
     );
@@ -342,9 +421,27 @@ export function autoDetectMapping(sourceHeaders = []) {
   }
 
   // 2. Alias matches in priority order
-  for (const targetCol of BOOK_CATALOG_COLUMNS) {
+  for (const targetCol of targetColumns) {
     if (mapping[targetCol]) continue;
-    const aliases = FIELD_ALIASES[targetCol] || [];
+    
+    let aliases = FIELD_ALIASES[targetCol] || [];
+    if (targetCol.startsWith('subject_')) {
+      const num = targetCol.replace('subject_', '');
+      aliases = [
+        `MARC_SUBJECT_${num}`,
+        `subject_${num}`,
+        `subject ${num}`,
+        `topic_${num}`,
+        `topic ${num}`,
+        `keyword_${num}`,
+        `keyword ${num}`,
+      ];
+    } else if (targetCol === 'subject' && options.splitSubjects === false) {
+      aliases = [
+        'MARC_SUBJECTS',
+        ...aliases,
+      ];
+    }
 
     // Exact alias match by priority order of aliases
     let matched = null;
@@ -440,28 +537,65 @@ export function sanitizeText(val) {
 }
 
 /**
+ * Resolves the list of target columns for export.
+ * If splitSubjects is enabled, splits into subject, subject_2, subject_3...
+ */
+export function resolveTargetColumns(options = {}, records = []) {
+  if (Array.isArray(options.targetColumns) && options.targetColumns.length > 0) {
+    return options.targetColumns;
+  }
+
+  const shouldSplit = options.splitSubjects !== false; // enabled by default if multiple subjects exist
+
+  let maxSubjectCount = 1;
+  if (shouldSplit) {
+    for (const r of records) {
+      for (let i = 15; i >= 2; i--) {
+        if (r[`MARC_SUBJECT_${i}`] || r[`subject_${i}`]) {
+          if (i > maxSubjectCount) maxSubjectCount = i;
+          break;
+        }
+      }
+    }
+  }
+
+  const cols = [];
+  for (const col of BOOK_CATALOG_COLUMNS) {
+    cols.push(col);
+    if (col === 'subject' && shouldSplit && maxSubjectCount > 1) {
+      for (let i = 2; i <= maxSubjectCount; i++) {
+        cols.push(`subject_${i}`);
+      }
+    }
+  }
+
+  return cols;
+}
+
+/**
  * Transforms records from ANY format (MARC .mrc/.mrk/.xml, CSV, Excel, TSV)
  * into standard Book Catalog CSV format.
  *
- * Supports:
- * - `customOverrides`: Explicit manual value applied to all records for that column
- * - `customDefaults`: Fallback value applied if source value is missing or empty
+ * Each subject is cleanly output in its own column (subject, subject_2, subject_3...).
  *
  * @param {Buffer} fileBuffer
  * @param {object} options
  * @param {string} [options.filename='']
+ * @param {boolean} [options.splitSubjects=true]
+ * @param {string[]} [options.targetColumns]
  * @param {Record<string, string | null>} [options.mapping={}]
  * @param {Record<string, string>} [options.customDefaults={}]
  * @param {Record<string, string>} [options.customOverrides={}]
- * @returns {Promise<{ csv: string, recordCount: number, detectedColumns: string[], columnLabels: Record<string, string>, effectiveMapping: Record<string, string | null> }>}
+ * @returns {Promise<{ csv: string, recordCount: number, detectedColumns: string[], columnLabels: Record<string, string>, effectiveMapping: Record<string, string | null>, targetColumns: string[], hasMultipleSubjects: boolean }>}
  */
 export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
-  const { records, detectedColumns, columnLabels } = await loadCatalogRecords(fileBuffer, options.filename || '');
+  const { records, detectedColumns, columnLabels, hasMultipleSubjects } = await loadCatalogRecords(fileBuffer, options.filename || '');
   if (!records || records.length === 0) {
     throw new Error('The uploaded file does not contain any valid records.');
   }
 
-  const suggestedMapping = autoDetectMapping(detectedColumns);
+  const targetColumns = resolveTargetColumns(options, records);
+  const suggestedMapping = autoDetectMapping(detectedColumns, targetColumns, options);
   const effectiveMapping = { ...suggestedMapping, ...(options.mapping || {}) };
   const customDefaults = options.customDefaults || {};
   const customOverrides = options.customOverrides || {};
@@ -469,22 +603,19 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
   const rows = [];
   for (const record of records) {
     const row = {};
-    for (const col of BOOK_CATALOG_COLUMNS) {
+    for (const col of targetColumns) {
       let val = '';
 
-      // Check if user set a manual fixed override for all records
       if (customOverrides[col] !== undefined && customOverrides[col] !== '') {
         val = String(customOverrides[col]).trim();
       } else {
         const sourceCol = effectiveMapping[col];
         val = sourceCol && record[sourceCol] != null ? String(record[sourceCol]).trim() : '';
 
-        // If price is literal "No price" or "Unpriced", treat as empty so fallback/override can apply
         if (col === 'price' && /^(?:no price|unpriced|n\/?a)$/i.test(val)) {
           val = '';
         }
 
-        // Apply fallback default if empty
         if (!val && customDefaults[col]) {
           val = String(customDefaults[col]).trim();
         }
@@ -510,7 +641,7 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
 
   const csv = stringifyCsv(rows, {
     header: true,
-    columns: BOOK_CATALOG_COLUMNS,
+    columns: targetColumns,
     quoted_string: true,
     quoted_empty: false,
   });
@@ -521,5 +652,7 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
     detectedColumns,
     columnLabels,
     effectiveMapping,
+    targetColumns,
+    hasMultipleSubjects,
   };
 }
