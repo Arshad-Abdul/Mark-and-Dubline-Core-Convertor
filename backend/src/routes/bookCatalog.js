@@ -35,6 +35,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     const customDefaults = parseJsonField(req.body.customDefaults);
     const customOverrides = parseJsonField(req.body.customOverrides);
     const splitSubjects = req.body.splitSubjects !== 'false' && req.body.splitSubjects !== false;
+    const excelSafeIsbn = req.body.excelSafeIsbn === 'true' || req.body.excelSafeIsbn === true;
 
     const fileBuffer = await fs.readFile(req.file.path);
     const {
@@ -51,6 +52,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       customDefaults,
       customOverrides,
       splitSubjects,
+      excelSafeIsbn,
     });
 
     const cleanCsv = csv.replace(/^\uFEFF/, '');
@@ -93,6 +95,7 @@ router.post('/convert', upload.single('file'), async (req, res) => {
     const customDefaults = parseJsonField(req.body.customDefaults);
     const customOverrides = parseJsonField(req.body.customOverrides);
     const splitSubjects = req.body.splitSubjects !== 'false' && req.body.splitSubjects !== false;
+    const excelSafeIsbn = req.body.excelSafeIsbn === 'true' || req.body.excelSafeIsbn === true;
 
     const fileBuffer = await fs.readFile(req.file.path);
     const { csv, recordCount, detectedColumns, effectiveMapping, targetColumns } = await convertToBookCatalogCsv(fileBuffer, {
@@ -101,6 +104,7 @@ router.post('/convert', upload.single('file'), async (req, res) => {
       customDefaults,
       customOverrides,
       splitSubjects,
+      excelSafeIsbn,
     });
     const baseName = req.file.originalname.replace(/\.[^.]+$/, '');
 

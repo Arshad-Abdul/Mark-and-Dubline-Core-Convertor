@@ -56,6 +56,8 @@ export default function BookCatalogConverter() {
 
   // Split multiple subjects into individual columns (subject, subject_2, subject_3...)
   const [splitSubjects, setSplitSubjects] = useState<boolean>(true);
+  // Format ISBN with hyphens (e.g. 978-xxx) so Microsoft Excel won't display it as 9.78E+12
+  const [excelSafeIsbn, setExcelSafeIsbn] = useState<boolean>(false);
 
   // Mapping state: targetCol -> sourceCol | ''
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -124,6 +126,7 @@ export default function BookCatalogConverter() {
     const form = new FormData();
     form.append('file', file);
     form.append('splitSubjects', String(splitSubjects));
+    form.append('excelSafeIsbn', String(excelSafeIsbn));
     fetch('/api/book-catalog/preview', { method: 'POST', body: form })
       .then(async (res) => {
         if (!res.ok) {
@@ -169,6 +172,7 @@ export default function BookCatalogConverter() {
     currentDefaults: Record<string, string>,
     currentOverrides: Record<string, string>,
     currentSplitSubjects: boolean = splitSubjects,
+    currentExcelSafeIsbn: boolean = excelSafeIsbn,
   ) => {
     if (!file) return;
     setIsPreviewLoading(true);
@@ -177,6 +181,7 @@ export default function BookCatalogConverter() {
     const form = new FormData();
     form.append('file', file);
     form.append('splitSubjects', String(currentSplitSubjects));
+    form.append('excelSafeIsbn', String(currentExcelSafeIsbn));
     if (Object.keys(currentMapping).length > 0) {
       form.append('mapping', JSON.stringify(currentMapping));
     }
@@ -207,11 +212,16 @@ export default function BookCatalogConverter() {
       .finally(() => {
         setIsPreviewLoading(false);
       });
-  }, [file, splitSubjects]);
+  }, [file, splitSubjects, excelSafeIsbn]);
 
   const handleToggleSplitSubjects = (val: boolean) => {
     setSplitSubjects(val);
-    fetchOverridePreview(mapping, customDefaults, customOverrides, val);
+    fetchOverridePreview(mapping, customDefaults, customOverrides, val, excelSafeIsbn);
+  };
+
+  const handleToggleExcelSafeIsbn = (val: boolean) => {
+    setExcelSafeIsbn(val);
+    fetchOverridePreview(mapping, customDefaults, customOverrides, splitSubjects, val);
   };
 
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -279,7 +289,7 @@ export default function BookCatalogConverter() {
     setCustomDefaults({});
     setCustomOverrides({});
     setFieldModes({});
-    fetchOverridePreview(init, {}, {}, splitSubjects);
+    fetchOverridePreview(init, {}, {}, splitSubjects, excelSafeIsbn);
   };
 
   const handleConvert = async () => {
@@ -290,6 +300,7 @@ export default function BookCatalogConverter() {
       const form = new FormData();
       form.append('file', file);
       form.append('splitSubjects', String(splitSubjects));
+      form.append('excelSafeIsbn', String(excelSafeIsbn));
       if (Object.keys(mapping).length > 0) {
         form.append('mapping', JSON.stringify(mapping));
       }
@@ -472,19 +483,40 @@ export default function BookCatalogConverter() {
 
             <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
               {file && (
-                <label className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 font-medium cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={splitSubjects}
-                    onChange={(e) => handleToggleSplitSubjects(e.target.checked)}
-                    className="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3 w-3"
-                  />
-                  <span>1 Subject / Col</span>
-                </label>
+                <>
+                  <label
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 font-medium cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    title="Separate multiple subjects into distinct columns (subject, subject_2, etc.)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={splitSubjects}
+                      onChange={(e) => handleToggleSplitSubjects(e.target.checked)}
+                      className="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3 w-3"
+                    />
+                    <span>1 Subject / Col</span>
+                  </label>
+
+                  <label
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-medium cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                    title="Prefixes 13-digit ISBNs as 978-xxx so Microsoft Excel will treat them as text instead of scientific notation (9.78E+12)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={excelSafeIsbn}
+                      onChange={(e) => handleToggleExcelSafeIsbn(e.target.checked)}
+                      className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 h-3 w-3"
+                    />
+                    <span>Excel-Safe ISBN</span>
+                  </label>
+                </>
               )}
-              <span className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+              <span
+                className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                title="Automatically restores real ISBN from DOI or links if corrupted by Excel (9.78E+12)"
+              >
                 <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                ISBN Standardized
+                ISBN Protected
               </span>
               <span className="inline-flex items-center gap-1 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                 UTF-8 BOM

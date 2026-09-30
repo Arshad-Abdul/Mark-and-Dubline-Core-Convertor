@@ -540,6 +540,82 @@ export function cleanIsbn(val) {
 }
 
 /**
+ * Extracts a valid 13-digit or 10-digit ISBN from any string (URL, DOI, note, text).
+ * Discards values ending with 4 or more zeros (which indicate float truncation like 9780190000000).
+ */
+export function extractValidIsbn(val) {
+  if (!val) return '';
+  const str = String(val);
+
+  // Look for 13-digit ISBN (starts with 978 or 979)
+  const matches13 = str.matchAll(/\b(97[89][-\s]?(?:\d[-\s]?){9}[\dXx])\b/g);
+  for (const m of matches13) {
+    const rawDigits = m[1].replace(/[\s-]/g, '');
+    if (rawDigits.length === 13 && !/0{4,}$/.test(rawDigits)) {
+      return m[1].replace(/\s+/g, '-').trim();
+    }
+  }
+
+  // Look for 10-digit ISBN
+  const matches10 = str.matchAll(/\b(?:\d[-\s]?){9}[\dXx]\b/g);
+  for (const m of matches10) {
+    const rawDigits = m[0].replace(/[\s-]/g, '');
+    if (rawDigits.length === 10 && !/0{4,}$/.test(rawDigits)) {
+      return m[0].replace(/\s+/g, '-').trim();
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Tries to recover a valid 10- or 13-digit ISBN from other fields in the record
+ * (such as URL, DOI, 776$z, 020$z, 024$a, notes, description) when the primary ISBN
+ * column was truncated or corrupted by Excel's scientific notation (e.g. 9.78E+12 or 9780190000000).
+ */
+export function recoverIsbnFromRecord(record) {
+  if (!record || typeof record !== 'object') return '';
+
+  // 1. Check priority fields first: url, doi, 856$u, 776$z, 020$z, 024$a, link
+  const priorityKeys = [
+    'url', 'doi', '856$u', '776$z', '020$z', '024$a', 'link', 'permalink', 'identifier', 'id'
+  ];
+
+  for (const k of priorityKeys) {
+    if (record[k]) {
+      const candidate = extractValidIsbn(record[k]);
+      if (candidate) return candidate;
+    }
+  }
+
+  // 2. Scan remaining fields (excluding author, publisher, year, pages)
+  for (const [k, v] of Object.entries(record)) {
+    if (priorityKeys.includes(k) || !v) continue;
+    if (/^(?:author|publisher|year|pages)$/i.test(k)) continue;
+    const candidate = extractValidIsbn(v);
+    if (candidate) return candidate;
+  }
+
+  return '';
+}
+
+/**
+ * Formats a clean 13-digit or 10-digit ISBN with standard prefix hyphens so Microsoft Excel
+ * will treat it as text and NEVER convert it into scientific notation (e.g. 9.78E+12).
+ * e.g. "9780190050108" -> "978-0190050108"
+ */
+export function formatExcelSafeIsbn(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  const digits = str.replace(/\D/g, '');
+  if (digits.length === 13 && (digits.startsWith('978') || digits.startsWith('979'))) {
+    if (str.includes('-')) return str;
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return str;
+}
+
+/**
  * Extracts a 4-digit publication year from strings like "2023", "2023-08-14", "c2021", etc.
  */
 export function extractYear(val) {
@@ -668,6 +744,18 @@ export async function convertToBookCatalogCsv(fileBuffer, options = {}) {
       // Column-specific cleaning
       if (col === 'isbn') {
         val = cleanIsbn(val);
+        const digitsOnly = val.replace(/\D/g, '');
+        // If ISBN was truncated or corrupted by Excel float scientific notation
+        // (e.g. 9780190000000 or 9780000000000), or empty/short, recover from url/doi/record
+        if (!val || (digitsOnly.length === 13 && /0{4,}$/.test(digitsOnly)) || digitsOnly.length < 10) {
+          const recovered = recoverIsbnFromRecord(record);
+          if (recovered) {
+            val = recovered;
+          }
+        }
+        if (options.excelSafeIsbn) {
+          val = formatExcelSafeIsbn(val);
+        }
       } else if (col === 'year') {
         val = extractYear(val);
       } else if (col === 'pages') {

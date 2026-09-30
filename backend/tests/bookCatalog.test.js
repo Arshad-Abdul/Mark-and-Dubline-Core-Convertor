@@ -5,6 +5,9 @@ import {
   extractYear,
   cleanPages,
   convertToBookCatalogCsv,
+  extractValidIsbn,
+  recoverIsbnFromRecord,
+  formatExcelSafeIsbn,
 } from '../src/lib/bookCatalogMapper.js';
 import { parse as parseCsv } from 'csv-parse/sync';
 
@@ -264,6 +267,48 @@ describe('Book Catalog Mapper', () => {
     expect(cleanIsbn('9.780190050108E+12')).toBe('9780190050108');
     expect(cleanIsbn('9.78019E+12')).toBe('9780190000000');
     expect(cleanIsbn('9780190050108 (ebook) :')).toBe('9780190050108');
+  });
+
+  test('extractValidIsbn extracts 13-digit ISBN and discards float-truncated zero patterns', () => {
+    expect(extractValidIsbn('http://dx.doi.org/10.1093/oxfordhb/9780190050092.001.0001')).toBe('9780190050092');
+    expect(extractValidIsbn('9780190000000')).toBe(''); // ends with 7 zeros, discarded as truncated
+  });
+
+  test('recoverIsbnFromRecord finds valid ISBN from url or doi fields', () => {
+    const record = {
+      isbn: '9.78E+12',
+      title: 'The Oxford handbook of Nigerian history',
+      url: 'http://dx.doi.org/10.1093/oxfordhb/9780190050092.001.0001',
+    };
+    expect(recoverIsbnFromRecord(record)).toBe('9780190050092');
+  });
+
+  test('formatExcelSafeIsbn hyphens 13-digit ISBN to prevent Excel scientific notation', () => {
+    expect(formatExcelSafeIsbn('9780190050108')).toBe('978-0190050108');
+    expect(formatExcelSafeIsbn('978-0190050108')).toBe('978-0190050108');
+  });
+
+  test('convertToBookCatalogCsv automatically recovers truncated ISBN from record URL', async () => {
+    const csvInput = `isbn,title,url\n9.78E+12,"Nigerian History","http://dx.doi.org/10.1093/oxfordhb/9780190050092.001.0001"`;
+
+    const result = await convertToBookCatalogCsv(Buffer.from(csvInput, 'utf-8'), {
+      filename: 'excel_corrupted.csv',
+    });
+
+    const parsed = parseCsv(result.csv, { columns: true });
+    expect(parsed[0].isbn).toBe('9780190050092');
+  });
+
+  test('convertToBookCatalogCsv applies excelSafeIsbn formatting when enabled', async () => {
+    const csvInput = `isbn,title\n9780190050108,"Nigerian History"`;
+
+    const result = await convertToBookCatalogCsv(Buffer.from(csvInput, 'utf-8'), {
+      filename: 'sample.csv',
+      excelSafeIsbn: true,
+    });
+
+    const parsed = parseCsv(result.csv, { columns: true });
+    expect(parsed[0].isbn).toBe('978-0190050108');
   });
 });
 
